@@ -1,18 +1,21 @@
 package com.hq.iol.ui;
 
-import com.hq.iol.service.InjectorLabelData;
-import com.hq.iol.service.LensLabelData;
+import com.hq.iol.label.LabelTemplate;
 import com.hq.iol.service.PrintService;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 
-/** 打印测试面板：A/B 线表单 + 状态查询 + 打印按钮。 */
+/** 打印测试面板：选模板 → 按变量生成表单 → 打印。 */
 @Component
 public class PrintPanel {
 
@@ -28,49 +31,86 @@ public class PrintPanel {
         GridPane g = new GridPane();
         g.setHgap(8);
         g.setVgap(8);
-        TextField type = new TextField("AT2000");
-        TextField power = new TextField("+20.0D");
-        TextField sn = new TextField("2605283500");
-        TextField diNo = new TextField("06975897610400");
-        TextField totalDia = new TextField("12.0");
-        TextField bodyDia = new TextField("6.0");
-        TextField lotNo = new TextField("B260513");
-        g.addRow(0, new Label("型号"), type, new Label("度数"), power);
-        g.addRow(1, new Label("序列号"), sn, new Label("UDI-DI"), diNo);
-        g.addRow(2, new Label("总直径"), totalDia, new Label("主体直径"), bodyDia);
-        g.addRow(3, new Label("批号(B线)"), lotNo);
+
+        ComboBox<LabelTemplate> templateBox = new ComboBox<>();
+        templateBox.setCellFactory(lv -> cell());
+        templateBox.setButtonCell(cell());
+        Map<String, TextField> varFields = new LinkedHashMap<>();
+        GridPane varGrid = new GridPane();
+        varGrid.setHgap(8);
+        varGrid.setVgap(8);
+
+        Runnable rebuildVars = () -> {
+            varFields.clear();
+            varGrid.getChildren().clear();
+            LabelTemplate t = templateBox.getValue();
+            if (t == null) {
+                return;
+            }
+            Set<String> vars = printService.templateVariables(t.name());
+            int row = 0;
+            for (String v : vars) {
+                TextField tf = new TextField();
+                varFields.put(v, tf);
+                varGrid.addRow(row++, new Label(v), tf);
+            }
+        };
+        templateBox.setOnAction(e -> rebuildVars.run());
+
+        Button reloadBtn = new Button("刷新模板");
+        reloadBtn.setOnAction(e -> runAsync(() -> {
+            var list = printService.listTemplates();
+            javafx.application.Platform.runLater(() -> {
+                templateBox.getItems().setAll(list);
+                if (!list.isEmpty()) {
+                    templateBox.getSelectionModel().selectFirst();
+                    rebuildVars.run();
+                }
+            });
+        }));
 
         Button statusBtn = new Button("查询打印机状态");
         statusBtn.setOnAction(e -> runAsync(() ->
                 uiLog.info("打印机状态: " + printService.queryPrinterStatus())));
-        Button lensBtn = new Button("打印 A 线晶体标签");
-        lensBtn.setOnAction(e -> {
-            String typeV = type.getText();
-            String powerV = power.getText();
-            String snV = sn.getText();
-            String totalDiaV = totalDia.getText();
-            String bodyDiaV = bodyDia.getText();
-            String diNoV = diNo.getText();
+
+        Button printBtn = new Button("打印");
+        printBtn.setOnAction(e -> {
+            LabelTemplate t = templateBox.getValue();
+            if (t == null) {
+                uiLog.error("请先选择模板");
+                return;
+            }
+            Map<String, String> vars = new LinkedHashMap<>();
+            varFields.forEach((k, tf) -> vars.put(k, tf.getText()));
             runAsync(() -> {
-                printService.printLens(new LensLabelData(typeV, powerV, snV,
-                        LocalDate.now(), totalDiaV, bodyDiaV, diNoV));
-                uiLog.info("A 线标签已下发: SN=" + snV);
+                printService.print(t.name(), vars);
+                uiLog.info("已下发打印: " + t.name());
             });
         });
-        Button injBtn = new Button("打印 B 线推注器标签");
-        injBtn.setOnAction(e -> {
-            String typeV = type.getText();
-            String lotNoV = lotNo.getText();
-            String diNoV = diNo.getText();
-            runAsync(() -> {
-                printService.printInjector(new InjectorLabelData(typeV, lotNoV,
-                        LocalDate.now(), LocalDate.now().plusYears(3), "2.2",
-                        "国械注准20243160001", diNoV));
-                uiLog.info("B 线标签已下发: LOT=" + lotNoV);
+
+        g.addRow(0, new Label("模板"), templateBox, reloadBtn, statusBtn, printBtn);
+        g.add(varGrid, 0, 1, 5, 1);
+        runAsync(() -> {
+            var list = printService.listTemplates();
+            javafx.application.Platform.runLater(() -> {
+                templateBox.getItems().setAll(list);
+                if (!list.isEmpty()) {
+                    templateBox.getSelectionModel().selectFirst();
+                    rebuildVars.run();
+                }
             });
         });
-        g.addRow(4, statusBtn, lensBtn, injBtn);
         return g;
+    }
+
+    private static ListCell<LabelTemplate> cell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(LabelTemplate item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.name());
+            }
+        };
     }
 
     private void runAsync(IoAction action) {
