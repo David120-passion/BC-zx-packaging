@@ -18,6 +18,9 @@ public final class LabelRenderer {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    /** 预览固定 4 px/mm。 */
+    private static final int PREVIEW_PX_PER_MM = 4;
+
     private LabelRenderer() {
     }
 
@@ -182,5 +185,123 @@ public final class LabelRenderer {
 
     private static String fmt(double v) {
         return v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v);
+    }
+
+    /** 预览路径：design JSON + 变量 → BufferedImage（4 px/mm）。 */
+    public static BufferedImage renderPreview(String designJson, Map<String, String> vars) {
+        JsonNode root = parse(designJson);
+        double widthMm = root.path("widthMm").asDouble();
+        double heightMm = root.path("heightMm").asDouble();
+        int dpi = (int) Math.round(PREVIEW_PX_PER_MM * 25.4);
+        BufferedImage img = new BufferedImage((int) Math.round(widthMm * PREVIEW_PX_PER_MM),
+                (int) Math.round(heightMm * PREVIEW_PX_PER_MM), BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        g.setColor(java.awt.Color.WHITE);
+        g.fillRect(0, 0, img.getWidth(), img.getHeight());
+        g.setColor(java.awt.Color.BLACK);
+        for (JsonNode el : root.path("elements")) {
+            switch (el.path("type").asText()) {
+                case "text", "image" -> drawBitmapElement(el, vars, dpi, g);
+                case "datamatrix" -> drawPreviewDataMatrix(el, vars, dpi, g);
+                case "barcode" -> drawPreviewBarcode(el, vars, dpi, g);
+                case "qrcode" -> drawPreviewQr(el, vars, dpi, g);
+                case "line", "rect" -> drawPreviewShape(el, dpi, g);
+                default -> throw new IllegalArgumentException("未知元素类型: " + el.path("type").asText());
+            }
+        }
+        g.dispose();
+        return img;
+    }
+
+    private static void drawPreviewDataMatrix(JsonNode el, Map<String, String> vars,
+                                              int dpi, Graphics2D g) {
+        String stream = el.path("gs1").asBoolean(false)
+                ? buildGs1Stream(el, vars)
+                : VariableSupport.replace(el.path("content").asText(""), vars);
+        // ZXing 无法真编码 FNC1，预览用 GS 字符近似（打印为原生 c126）
+        String zxingContent = stream.replace("~1", "\u001d");
+        int x = dot(el.path("x").asDouble(), dpi);
+        int y = dot(el.path("y").asDouble(), dpi);
+        int size = dot(el.path("sizeMm").asDouble(), dpi);
+        com.google.zxing.datamatrix.DataMatrixWriter writer =
+                new com.google.zxing.datamatrix.DataMatrixWriter();
+        com.google.zxing.common.BitMatrix matrix = writer.encode(
+                zxingContent, com.google.zxing.BarcodeFormat.DATA_MATRIX, size, size);
+        for (int my = 0; my < matrix.getHeight(); my++) {
+            for (int mx = 0; mx < matrix.getWidth(); mx++) {
+                if (matrix.get(mx, my)) {
+                    g.fillRect(x + mx, y + my, 1, 1);
+                }
+            }
+        }
+    }
+
+    private static void drawPreviewBarcode(JsonNode el, Map<String, String> vars,
+                                           int dpi, Graphics2D g) {
+        String content = VariableSupport.replace(el.path("content").asText(""), vars);
+        int x = dot(el.path("x").asDouble(), dpi);
+        int y = dot(el.path("y").asDouble(), dpi);
+        int w = el.has("widthMm") ? dot(el.path("widthMm").asDouble(), dpi)
+                : dot(el.path("moduleMm").asDouble(0.3), dpi) * Math.max(1, content.length() * 11);
+        int h = dot(el.path("heightMm").asDouble(8), dpi);
+        com.google.zxing.oned.Code128Writer writer = new com.google.zxing.oned.Code128Writer();
+        com.google.zxing.common.BitMatrix matrix = writer.encode(
+                content, com.google.zxing.BarcodeFormat.CODE_128, w, h);
+        for (int mx = 0; mx < matrix.getWidth(); mx++) {
+            for (int my = 0; my < matrix.getHeight(); my++) {
+                if (matrix.get(mx, my)) {
+                    g.fillRect(x + mx, y + my, 1, 1);
+                }
+            }
+        }
+    }
+
+    private static void drawPreviewQr(JsonNode el, Map<String, String> vars,
+                                      int dpi, Graphics2D g) {
+        String content = VariableSupport.replace(el.path("content").asText(""), vars);
+        int x = dot(el.path("x").asDouble(), dpi);
+        int y = dot(el.path("y").asDouble(), dpi);
+        int size = dot(el.path("sizeMm").asDouble(15), dpi);
+        com.google.zxing.qrcode.QRCodeWriter writer = new com.google.zxing.qrcode.QRCodeWriter();
+        try {
+            com.google.zxing.common.BitMatrix matrix = writer.encode(
+                    content, com.google.zxing.BarcodeFormat.QR_CODE, size, size);
+            for (int my = 0; my < matrix.getHeight(); my++) {
+                for (int mx = 0; mx < matrix.getWidth(); mx++) {
+                    if (matrix.get(mx, my)) {
+                        g.fillRect(x + mx, y + my, 1, 1);
+                    }
+                }
+            }
+        } catch (com.google.zxing.WriterException e) {
+            throw new IllegalArgumentException("二维码预览编码失败", e);
+        }
+    }
+
+    private static void drawPreviewShape(JsonNode el, int dpi, Graphics2D g) {
+        int x = dot(el.path("x").asDouble(), dpi);
+        int y = dot(el.path("y").asDouble(), dpi);
+        if ("line".equals(el.path("type").asText())) {
+            int len = dot(el.path("lengthMm").asDouble(), dpi);
+            int thick = Math.max(1, dot(el.path("thicknessMm").asDouble(0.4), dpi));
+            int angle = el.path("angle").asInt(0);
+            if (angle == 90 || angle == 270) {
+                g.fillRect(x, y, thick, len);
+            } else {
+                g.fillRect(x, y, len, thick);
+            }
+        } else {
+            int w = dot(el.path("widthMm").asDouble(), dpi);
+            int h = dot(el.path("heightMm").asDouble(), dpi);
+            if (el.path("fill").asBoolean(false)) {
+                g.fillRect(x, y, w, h);
+            } else {
+                int thick = Math.max(1, dot(el.path("thicknessMm").asDouble(0.5), dpi));
+                g.fillRect(x, y, w, thick);
+                g.fillRect(x, y + h - thick, w, thick);
+                g.fillRect(x, y, thick, h);
+                g.fillRect(x + w - thick, y, thick, h);
+            }
+        }
     }
 }
