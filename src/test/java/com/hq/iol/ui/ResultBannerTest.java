@@ -4,6 +4,8 @@ import javafx.application.Platform;
 import javafx.scene.control.Label;
 import org.junit.jupiter.api.*;
 
+import com.hq.iol.FxTestToolkit;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;

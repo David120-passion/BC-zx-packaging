@@ -58,14 +58,13 @@ public class MainApp extends Application {
     }
 
     /** 后台 daemon 线程引导 Spring，完成后淡出启动画面并挂载主界面。 */
-    private void startBoot(SplashScreen splash, List<Image> icons, Stage stage) {
+    void startBoot(SplashScreen splash, List<Image> icons, Stage stage) {
         Thread boot = new Thread(() -> {
             try {
                 splash.updateStatus("正在准备本地数据…");
                 Files.createDirectories(Path.of("data"));
                 splash.updateStatus("正在启动服务容器…");
-                ctx = new SpringApplicationBuilder(SpringMain.class)
-                        .web(WebApplicationType.NONE).headless(false).run();
+                ctx = runSpring();
                 Platform.runLater(() -> {
                     try {
                         splash.updateStatus("正在加载主界面…");
@@ -90,14 +89,20 @@ public class MainApp extends Application {
         boot.start();
     }
 
+    /** 引导 Spring 容器。包级可见，供启动失败路径的回归测试替换。 */
+    ConfigurableApplicationContext runSpring() {
+        return new SpringApplicationBuilder(SpringMain.class)
+                .web(WebApplicationType.NONE).headless(false).run();
+    }
+
     /** 加载内嵌的思源黑体（Medium 正文 + Bold 标题），不依赖系统字体。 */
-    private void loadBundledFonts() {
+    void loadBundledFonts() {
         Font.loadFont(getClass().getResourceAsStream("/fonts/NotoSansCJKsc-Medium.otf"), 14);
         Font.loadFont(getClass().getResourceAsStream("/fonts/NotoSansCJKsc-Bold.otf"), 14);
     }
 
     /** 依次读取五个窗口图标，返回 16→512 顺序的列表。 */
-    private List<Image> loadIcons() {
+    List<Image> loadIcons() {
         List<Image> icons = new ArrayList<>();
         for (String name : new String[]{"/icon-16.png", "/icon-32.png", "/icon-64.png", "/icon-256.png", "/icon.png"}) {
             icons.add(new Image(getClass().getResourceAsStream(name)));
@@ -106,7 +111,7 @@ public class MainApp extends Application {
     }
 
     /** 构建主界面场景（不显示）。侧边栏布局较宽，窗口相应加大并设置最小尺寸保护布局。 */
-    private void prepareMainStage(Stage stage, List<Image> icons) {
+    void prepareMainStage(Stage stage, List<Image> icons) {
         MainView mainView = ctx.getBean(MainView.class);
         Scene scene = new Scene(mainView.build(), 1360, 900);
         // 填充色与页面背景一致：最大化/全屏时高分屏缩放会在边缘露出 Scene 底色，
@@ -121,7 +126,7 @@ public class MainApp extends Application {
     }
 
     /** 显示主窗口并淡入。 */
-    private void showMainStage(Stage stage) {
+    void showMainStage(Stage stage) {
         stage.getScene().getRoot().setOpacity(0);
         stage.show();
         FadeTransition fade = new FadeTransition(Duration.millis(300), stage.getScene().getRoot());
@@ -146,7 +151,8 @@ public class MainApp extends Application {
         });
     }
 
-    private void showFatalError(String message) {
+    /** 弹出致命错误提示并退出。包级可见，供启动失败路径的回归测试替换。 */
+    void showFatalError(String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle("启动失败");
         alert.setHeaderText("应用启动失败，即将退出");

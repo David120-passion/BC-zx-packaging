@@ -1,4 +1,4 @@
-package com.hq.iol.ui;
+package com.hq.iol;
 
 import javafx.application.Platform;
 
@@ -13,14 +13,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 并关闭隐式退出（避免窗口关闭导致 Toolkit 中途停止）；
  * Toolkit 不主动关闭，由 surefire 的 System.exit 随测试 JVM 一起终止。
  */
-final class FxTestToolkit {
+public final class FxTestToolkit {
 
     private static final AtomicBoolean STARTED = new AtomicBoolean();
 
     private FxTestToolkit() {
     }
 
-    static void start() throws InterruptedException {
+    public static void start() throws InterruptedException {
         if (STARTED.compareAndSet(false, true)) {
             CountDownLatch ready = new CountDownLatch(1);
             Platform.startup(ready::countDown);

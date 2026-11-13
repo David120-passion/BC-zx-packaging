@@ -1,5 +1,6 @@
 package com.hq.iol.ui;
 
+import com.hq.iol.FxTestToolkit;
 import javafx.animation.Animation;
 import javafx.application.Platform;
 import javafx.scene.image.Image;
