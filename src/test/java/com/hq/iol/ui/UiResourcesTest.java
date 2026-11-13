@@ -18,6 +18,11 @@ class UiResourcesTest {
     }
 
     @Test
+    void themeStylesheetExists() {
+        assertNotNull(getClass().getResource("/app.css"));
+    }
+
+    @Test
     void windowIconsAndIcoHaveDeclaredSizes() throws Exception {
         for (int size : new int[]{16, 32, 64, 256}) {
             var image = ImageIO.read(getClass().getResource("/icon-" + size + ".png"));

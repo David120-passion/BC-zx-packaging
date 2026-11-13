@@ -1,0 +1,513 @@
+/* ══════════════════════════════════════════════════════════════
+   IOL 包装线上位机 · Apple 精致浅色主题
+   设计令牌参考 Apple HIG：#F5F5F7 页面底 / 纯白卡片 / #007AFF 主色，
+   文字近黑 #1D1D1F，辅以 #34C759 / #FF9500 / #FF3B30 状态色。
+   字体：正文内嵌思源黑体 Medium，标题/按钮用思源黑体 Bold。
+   ══════════════════════════════════════════════════════════════ */
+
+.root {
+    /* ── 设计令牌（looked-up colors，全局可引用） ── */
+    -hq-bg: #F5F5F7;             /* 页面背景 */
+    -hq-surface: #FFFFFF;        /* 卡片 */
+    -hq-sidebar: #EFEFF1;        /* 侧边栏底 */
+    -hq-text: #1D1D1F;           /* 主文字 */
+    -hq-text-2: #6E6E73;         /* 次文字 */
+    -hq-text-3: #AEAEB2;         /* 占位/弱提示 */
+    -hq-accent: #007AFF;         /* Apple 系统蓝 */
+    -hq-accent-hover: #0062CC;
+    -hq-accent-press: #004FAA;
+    -hq-accent-tint: rgba(0, 122, 255, 0.10);
+    -hq-green: #34C759;
+    -hq-green-text: #1F8738;     /* 浅底上可读性更好的绿 */
+    -hq-green-tint: rgba(52, 199, 89, 0.13);
+    -hq-orange: #FF9500;
+    -hq-red: #FF3B30;
+    -hq-red-text: #D70015;
+    -hq-red-tint: rgba(255, 59, 48, 0.10);
+    -hq-border: #D2D2D7;         /* 控件描边 */
+    -hq-sep: #E8E8ED;            /* 发丝分隔线 */
+
+    -fx-base: -hq-bg;
+    -fx-background-color: -hq-bg;
+    -fx-control-inner-background: -hq-surface;
+    -fx-focus-color: rgba(0, 122, 255, 0.35);
+    -fx-faint-focus-color: transparent;
+    -fx-font-family: "Noto Sans CJK SC Medium", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -fx-font-size: 13px;
+    -fx-text-fill: -hq-text;
+}
+/* LCD 亚像素平滑，让中文笔画更饱满清晰（默认灰度渲染偏细发虚） */
+.text {
+    -fx-font-smoothing-type: lcd;
+}
+
+/* ════════════════ 侧边栏（macOS Source List 风格） ════════════════ */
+.sidebar {
+    -fx-background-color: -hq-sidebar;
+    -fx-min-width: 210px;
+    -fx-pref-width: 210px;
+    -fx-padding: 18 12 14 12;
+}
+.sidebar-title {
+    -fx-font-size: 14px;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hq-text;
+}
+.sidebar-subtitle {
+    -fx-font-size: 11px;
+    -fx-text-fill: -hq-text-2;
+}
+.nav-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-border-color: transparent;
+    -fx-padding: 8 12 8 12;
+    -fx-font-size: 13.5px;
+    -fx-text-fill: #3A3A3C;
+    -fx-alignment: center-left;
+    -fx-cursor: hand;
+}
+.nav-item:hover {
+    -fx-background-color: rgba(0, 0, 0, 0.045);
+}
+.nav-item:selected {
+    -fx-background-color: -hq-surface;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.10), 8, 0, 0, 1.5);
+    -fx-text-fill: -hq-accent;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    -fx-font-weight: bold;
+}
+/* 导航项图标块：iOS 设置风格彩色圆角方块 + 白色符号 */
+.nav-chip {
+    -fx-background-radius: 7;
+    -fx-min-width: 24px;
+    -fx-min-height: 24px;
+    -fx-pref-width: 24px;
+    -fx-pref-height: 24px;
+    -fx-max-width: 24px;
+    -fx-max-height: 24px;
+    -fx-alignment: center;
+}
+.nav-glyph {
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    -fx-font-weight: bold;
+}
+.chip-blue   { -fx-background-color: #007AFF; }
+.chip-green  { -fx-background-color: #34C759; }
+.chip-gray   { -fx-background-color: #8E8E93; }
+
+/* ════════════════ 卡片 ════════════════ */
+.card {
+    -fx-background-color: -hq-surface;
+    -fx-background-radius: 16;
+    -fx-border-color: transparent;
+    -fx-padding: 14 18 14 18;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.055), 22, 0, 0, 3);
+}
+.card-title {
+    -fx-font-size: 15px;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hq-text;
+}
+.hint {
+    -fx-text-fill: -hq-text-2;
+    -fx-font-size: 12px;
+}
+/* 工具栏/表格外套的卡片（查询、配方页用），内边距更紧凑 */
+.toolbar-card {
+    -fx-background-color: -hq-surface;
+    -fx-background-radius: 14;
+    -fx-padding: 10 14 10 14;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.05), 18, 0, 0, 2);
+}
+.table-card {
+    -fx-background-color: -hq-surface;
+    -fx-background-radius: 14;
+    -fx-padding: 4 4 8 4;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.05), 18, 0, 0, 2);
+}
+
+/* ════════════════ 按钮 ════════════════ */
+.button {
+    -fx-background-color: -hq-surface;
+    -fx-border-color: -hq-border;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-text-fill: -hq-text;
+    -fx-font-size: 13px;
+    -fx-padding: 6 14 6 14;
+    -fx-cursor: hand;
+}
+.button:hover {
+    -fx-background-color: #F7F7F9;
+}
+.button:pressed {
+    -fx-background-color: #EDEDF0;
+}
+.button:disabled {
+    -fx-opacity: 0.45;
+}
+.btn-primary {
+    -fx-background-color: -hq-accent;
+    -fx-border-color: transparent;
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    -fx-font-weight: bold;
+    -fx-padding: 8 22 8 22;
+}
+.btn-primary:hover {
+    -fx-background-color: -hq-accent-hover;
+}
+.btn-primary:pressed {
+    -fx-background-color: -hq-accent-press;
+}
+.btn-primary:disabled {
+    -fx-opacity: 0.45;
+}
+
+/* ════════════════ 输入框 / 下拉 / 日期 ════════════════ */
+.text-field {
+    -fx-background-color: -hq-surface;
+    -fx-border-color: -hq-border;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 7 10 7 10;
+    -fx-text-fill: -hq-text;
+}
+.text-field:focused {
+    -fx-border-color: -hq-accent;
+    -fx-background-color: -hq-surface;
+    -fx-effect: dropshadow(gaussian, rgba(0, 122, 255, 0.28), 7, 0.35, 0, 0);
+}
+/* 扫码输入框：更大字号 + 等宽数字，便于核对条码 */
+.scan-field {
+    -fx-font-size: 15px;
+    -fx-font-family: "Consolas", "Noto Sans CJK SC Medium", "Microsoft YaHei", monospace;
+    -fx-padding: 9 12 9 12;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+}
+.combo-box-base {
+    -fx-background-color: -hq-surface;
+    -fx-border-color: -hq-border;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-padding: 4 8 4 8;
+    -fx-cursor: hand;
+}
+.combo-box-base:focused {
+    -fx-border-color: -hq-accent;
+    -fx-effect: dropshadow(gaussian, rgba(0, 122, 255, 0.28), 7, 0.35, 0, 0);
+}
+.combo-box-base > .list-cell {
+    -fx-padding: 2 4 2 4;
+}
+.combo-box-popup .list-view {
+    -fx-background-color: -hq-surface;
+    -fx-background-radius: 10;
+    -fx-border-color: -hq-sep;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.14), 16, 0, 0, 4);
+}
+.combo-box-popup .list-cell {
+    -fx-padding: 7 12 7 12;
+}
+.combo-box-popup .list-cell:hover,
+.combo-box-popup .list-cell:focused {
+    -fx-background-color: -hq-accent-tint;
+    -fx-text-fill: -hq-accent;
+}
+/* 下拉箭头 */
+.combo-box-base > .arrow-button > .arrow {
+    -fx-background-color: -hq-text-2;
+}
+
+/* ════════════════ iOS 滑动开关（CheckBox 重绘） ════════════════ */
+.check-box > .box {
+    -fx-background-color: rgba(120, 120, 128, 0.30);
+    -fx-background-radius: 999;
+    -fx-border-width: 0;
+    -fx-min-width: 46px;
+    -fx-min-height: 28px;
+    -fx-pref-width: 46px;
+    -fx-pref-height: 28px;
+    -fx-padding: 3px;
+    -fx-alignment: center-left;
+}
+.check-box:selected > .box {
+    -fx-background-color: -hq-green;
+    -fx-alignment: center-right;
+}
+.check-box > .box > .mark {
+    /* 圆形滑钮（SVG 圆，随 region 尺寸缩放） */
+    -fx-shape: "M 12 12 m -10, 0 a 10,10 0 1,0 20,0 a 10,10 0 1,0 -20,0";
+    -fx-background-color: white;
+    -fx-background-insets: 0;
+    -fx-min-width: 22px;
+    -fx-min-height: 22px;
+    -fx-pref-width: 22px;
+    -fx-pref-height: 22px;
+    -fx-max-width: 22px;
+    -fx-max-height: 22px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.25), 3, 0, 0, 0.5);
+}
+.check-box:disabled {
+    -fx-opacity: 0.45;
+}
+
+/* ════════════════ 分段式选项卡（配置页） ════════════════ */
+.tab-pane > .tab-header-area {
+    -fx-padding: 10 12 0 12;
+}
+.tab-pane > .tab-header-area > .headers-region {
+    -fx-background-color: rgba(120, 120, 128, 0.12);
+    -fx-background-radius: 10;
+    -fx-padding: 3;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent;
+    -fx-padding: 5 16 5 16;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab .tab-label {
+    -fx-text-fill: -hq-text-2;
+    -fx-font-size: 13px;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: -hq-surface;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.12), 6, 0, 0, 1);
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-label {
+    -fx-text-fill: -hq-text;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    -fx-font-weight: bold;
+}
+.tab-pane > .tab-content-area {
+    -fx-background-color: transparent;
+    -fx-padding: 6 0 0 0;
+    -fx-border-color: transparent;
+}
+/* 选项卡内滚动区透明，融入页面背景 */
+.config-scroll,
+.config-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+.config-scroll {
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+/* ════════════════ 表格（查询 / 配方页） ════════════════ */
+.table-view {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+.table-view .column-header-background {
+    -fx-background-color: transparent;
+}
+.table-view .column-header-background .filler {
+    -fx-background-color: transparent;
+}
+.table-view .column-header {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent -hq-sep transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-size: 34;
+    -fx-padding: 0 8 0 8;
+}
+.table-view .column-header .label {
+    -fx-text-fill: -hq-text-2;
+    -fx-font-size: 12px;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    -fx-font-weight: bold;
+}
+.table-view .filler {
+    -fx-background-color: transparent;
+}
+.table-row-cell {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent #EFEFF1 transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-cell-size: 36px;
+    -fx-padding: 0 8 0 8;
+    -fx-text-fill: -hq-text;
+}
+.table-row-cell:hover {
+    -fx-background-color: rgba(0, 0, 0, 0.028);
+}
+.table-row-cell:selected {
+    -fx-background-color: -hq-accent-tint;
+}
+.table-row-cell:selected .text {
+    -fx-fill: -hq-accent;
+}
+.table-view .placeholder .label {
+    -fx-text-fill: -hq-text-3;
+}
+/* 隐藏列头右侧的「+」列选择按钮 */
+.table-view .show-hide-columns-button {
+    -fx-opacity: 0;
+    -fx-pref-width: 0;
+    -fx-padding: 0;
+}
+
+/* ════════════════ 日志列表 ════════════════ */
+.log-list {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-font-family: "Consolas", "Noto Sans CJK SC Medium", "Microsoft YaHei", monospace;
+    -fx-font-size: 12.5px;
+}
+.log-list .list-cell {
+    -fx-padding: 2.5 8 2.5 8;
+    -fx-background-color: transparent;
+    -fx-text-fill: #3A3A3C;
+}
+.log-list .list-cell:odd {
+    -fx-background-color: rgba(0, 0, 0, 0.018);
+}
+.log-list .list-cell:filled:hover {
+    -fx-background-color: rgba(0, 0, 0, 0.04);
+}
+.log-error .text {
+    -fx-fill: -hq-red-text;
+}
+.log-warn .text {
+    -fx-fill: #B25000;
+}
+
+/* ════════════════ 滚动条（全局纤细化） ════════════════ */
+.scroll-bar {
+    -fx-background-color: transparent;
+    -fx-pref-width: 10;
+    -fx-pref-height: 10;
+}
+.scroll-bar .thumb {
+    -fx-background-color: rgba(0, 0, 0, 0.22);
+    -fx-background-radius: 5;
+    -fx-background-insets: 1;
+}
+.scroll-bar .thumb:hover {
+    -fx-background-color: rgba(0, 0, 0, 0.34);
+}
+.scroll-bar .track {
+    -fx-background-color: transparent;
+}
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-opacity: 0;
+    -fx-padding: 0;
+}
+
+/* ════════════════ 表单标签 ════════════════ */
+.field-label {
+    -fx-text-fill: -hq-text-2;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    -fx-font-weight: bold;
+}
+
+/* ════════════════ 流程结果横幅（iOS 通知胶囊） ════════════════ */
+.result-banner {
+    -fx-background-radius: 999;
+    -fx-padding: 6 14 6 14;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+    -fx-alignment: center;
+}
+.result-running {
+    -fx-background-color: -hq-accent-tint;
+    -fx-text-fill: -hq-accent;
+}
+.result-success {
+    -fx-background-color: -hq-green-tint;
+    -fx-text-fill: -hq-green-text;
+}
+.result-fail {
+    -fx-background-color: -hq-red-tint;
+    -fx-text-fill: -hq-red-text;
+}
+
+/* ════════════════ 对话框 ════════════════ */
+.dialog-pane {
+    -fx-background-color: -hq-bg;
+    -fx-background-radius: 16;
+}
+.dialog-pane > .content {
+    -fx-background-color: -hq-bg;
+}
+.dialog-pane .header-panel {
+    -fx-background-color: transparent;
+}
+.dialog-pane .button-bar .button {
+    -fx-min-width: 72px;
+}
+
+/* ════════════════ 启动动画 ════════════════ */
+.splash-card {
+    -fx-background-color: -hq-surface;
+    -fx-background-radius: 24;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.14), 44, 0, 0, 10);
+}
+.splash-icon {
+    -fx-effect: dropshadow(gaussian, rgba(0, 60, 140, 0.28), 16, 0, 0, 5);
+}
+.splash-title {
+    -fx-font-size: 20px;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hq-text;
+}
+.splash-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: -hq-text-2;
+}
+.splash-progress {
+    -fx-accent: -hq-accent;
+    -fx-pref-height: 3;
+}
+.splash-progress .track {
+    -fx-background-color: -hq-sep;
+    -fx-background-radius: 2;
+}
+.splash-progress .bar {
+    -fx-background-radius: 2;
+    -fx-padding: 1.5;
+}
+.splash-status {
+    -fx-text-fill: -hq-text-2;
+    -fx-font-size: 12px;
+}
+.splash-version {
+    -fx-text-fill: -hq-text-3;
+    -fx-font-size: 11px;
+}
+
+/* ════════════════ 页面头 ════════════════ */
+.page-title { -fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: -hq-text; }
+.page-subtitle { -fx-font-size: 12px; -fx-text-fill: -hq-text-2; }
+.page-content { -fx-background-color: transparent; }
+
+/* ════════════════ 日志抽屉 ════════════════ */
+.log-drawer { -fx-background-color: -hq-surface; -fx-background-radius: 14; -fx-padding: 8 12 10 12; }
+
+/* ════════════════ 称重读数 ════════════════ */
+.weight-value { -fx-font-family: "Consolas", "Noto Sans CJK SC Medium", monospace; -fx-font-size: 52px; -fx-font-weight: bold; -fx-text-fill: -hq-text; }
+.weight-unit { -fx-font-size: 20px; -fx-text-fill: -hq-text-2; }
+
+/* ════════════════ 标签设计器 ════════════════ */
+.designer-canvas, .designer-canvas > .viewport { -fx-background-color: #E9EAF0; }
+.designer-paper { -fx-background-color: white; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.16), 18, 0, 0, 4); }
+.template-badge { -fx-background-color: -hq-accent-tint; -fx-text-fill: -hq-accent; -fx-background-radius: 999; -fx-padding: 2 7 2 7; -fx-font-size: 10px; }
+
+/* ════════════════ 状态与校验 ════════════════ */
+.empty-state { -fx-text-fill: -hq-text-3; -fx-font-size: 13px; -fx-alignment: center; }
+.field-error { -fx-text-fill: -hq-red-text; -fx-font-size: 11px; }
