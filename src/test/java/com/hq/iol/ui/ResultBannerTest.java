@@ -36,4 +36,21 @@ class ResultBannerTest {
         assertTrue(label.getStyleClass().contains("result-fail"));
         assertEquals("打印机未就绪", label.getTooltip().getText());
     }
+
+    @Test
+    void clearKeepsConsistentHeight() throws Exception {
+        AtomicReference<ResultBanner> ref = new AtomicReference<>();
+        CountDownLatch created = new CountDownLatch(1);
+        Platform.runLater(() -> { ref.set(new ResultBanner()); created.countDown(); });
+        assertTrue(created.await(5, TimeUnit.SECONDS));
+        Label label = (Label) ref.get().node();
+        ref.get().success("校验通过");
+        double populatedMin = label.getMinHeight();
+        ref.get().clear();
+        CountDownLatch drained = new CountDownLatch(1);
+        Platform.runLater(drained::countDown);
+        assertTrue(drained.await(5, TimeUnit.SECONDS));
+        assertTrue(populatedMin > 0, "横幅应有显式最小高度，空闲时保持占位");
+        assertEquals(populatedMin, label.getMinHeight(), "clear() 不得改变横幅高度");
+    }
 }

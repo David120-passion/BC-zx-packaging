@@ -27,6 +27,9 @@ public class ResultBanner {
         label.setTextOverrun(OverrunStyle.ELLIPSIS);
         // 首选宽度设为 0：长文字不会把卡片撑宽，而是在容器分配的宽度内省略
         label.setPrefWidth(0);
+        // 显式最小高度：13px 加粗文字 + 12 垂直内边距的胶囊约 30px，
+        // 预留 32px 保证空闲（clear 后）与有内容时布局高度一致，不挤动标题行
+        label.setMinHeight(32);
     }
 
     public Node node() {
