@@ -11,9 +11,9 @@
   </parent>
 
   <groupId>com.hq</groupId>
-  <artifactId>iol-packaging-host</artifactId>
+  <artifactId>BC-zx-packaging</artifactId>
   <version>0.1.0</version>
-  <name>iol-packaging-host</name>
+  <name>BC-zx-packaging</name>
 
   <properties>
     <java.version>21</java.version>
