@@ -1616,7 +1616,8 @@ public class ScaleService {
 
     public void tare() throws IOException {
         try (EkiScaleDriver scale = EkiScaleDriver.open(config.get(ConfigKeys.SCALE_PORT))) {
-            scale.zero();
+            // Task 8 修复轮后签名为 zero(Duration)：清零同样受有界读约束
+            scale.zero(Duration.ofMillis(config.getInt(ConfigKeys.SCALE_READ_TIMEOUT_MS)));
         }
     }
 }
