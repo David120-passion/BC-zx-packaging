@@ -7,12 +7,16 @@ import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 
 /** JavaFX 入口：main 启动 FX，后台 daemon 线程引导 Spring，完成后挂载主界面。 */
 public class MainApp extends Application {
+
+    private static final Logger log = LoggerFactory.getLogger(MainApp.class);
 
     private ConfigurableApplicationContext ctx;
 
@@ -36,6 +40,7 @@ public class MainApp extends Application {
                         .run();
                 Platform.runLater(() -> root.setCenter(ctx.getBean(MainView.class).build()));
             } catch (Exception e) {
+                log.error("Spring 启动失败", e);
                 Platform.runLater(() ->
                         root.setCenter(new Label("Spring 启动失败: " + e.getMessage())));
             }

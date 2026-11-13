@@ -44,19 +44,31 @@ public class PrintPanel {
         statusBtn.setOnAction(e -> runAsync(() ->
                 uiLog.info("打印机状态: " + printService.queryPrinterStatus())));
         Button lensBtn = new Button("打印 A 线晶体标签");
-        lensBtn.setOnAction(e -> runAsync(() -> {
-            printService.printLens(new LensLabelData(type.getText(), power.getText(),
-                    sn.getText(), LocalDate.now(), totalDia.getText(), bodyDia.getText(),
-                    diNo.getText()));
-            uiLog.info("A 线标签已下发: SN=" + sn.getText());
-        }));
+        lensBtn.setOnAction(e -> {
+            String typeV = type.getText();
+            String powerV = power.getText();
+            String snV = sn.getText();
+            String totalDiaV = totalDia.getText();
+            String bodyDiaV = bodyDia.getText();
+            String diNoV = diNo.getText();
+            runAsync(() -> {
+                printService.printLens(new LensLabelData(typeV, powerV, snV,
+                        LocalDate.now(), totalDiaV, bodyDiaV, diNoV));
+                uiLog.info("A 线标签已下发: SN=" + snV);
+            });
+        });
         Button injBtn = new Button("打印 B 线推注器标签");
-        injBtn.setOnAction(e -> runAsync(() -> {
-            printService.printInjector(new InjectorLabelData(type.getText(), lotNo.getText(),
-                    LocalDate.now(), LocalDate.now().plusYears(3), "2.2",
-                    "国械注准20243160001", diNo.getText()));
-            uiLog.info("B 线标签已下发: LOT=" + lotNo.getText());
-        }));
+        injBtn.setOnAction(e -> {
+            String typeV = type.getText();
+            String lotNoV = lotNo.getText();
+            String diNoV = diNo.getText();
+            runAsync(() -> {
+                printService.printInjector(new InjectorLabelData(typeV, lotNoV,
+                        LocalDate.now(), LocalDate.now().plusYears(3), "2.2",
+                        "国械注准20243160001", diNoV));
+                uiLog.info("B 线标签已下发: LOT=" + lotNoV);
+            });
+        });
         g.addRow(4, statusBtn, lensBtn, injBtn);
         return g;
     }

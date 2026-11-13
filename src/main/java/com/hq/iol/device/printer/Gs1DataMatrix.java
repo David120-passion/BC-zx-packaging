@@ -21,6 +21,7 @@ public final class Gs1DataMatrix {
     public static String forLens(String udiDi, LocalDate produced,
                                  LocalDate expiry, String serialNo) {
         requireDigits(udiDi, 14, "UDI-DI");
+        requireGs1Value(serialNo, "序列号");
         return FNC1 + "01" + udiDi
                 + "11" + produced.format(YYMMDD)
                 + "17" + expiry.format(YYMMDD)
@@ -31,6 +32,7 @@ public final class Gs1DataMatrix {
     public static String forInjector(String udiDi, LocalDate produced,
                                      LocalDate expiry, String lotNo) {
         requireDigits(udiDi, 14, "UDI-DI");
+        requireGs1Value(lotNo, "批次号");
         return FNC1 + "01" + udiDi
                 + "11" + produced.format(YYMMDD)
                 + "17" + expiry.format(YYMMDD)
@@ -46,5 +48,18 @@ public final class Gs1DataMatrix {
         if (v == null || v.length() != len || !v.chars().allMatch(Character::isDigit)) {
             throw new IllegalArgumentException(field + " 必须为 " + len + " 位数字，实际: " + v);
         }
+    }
+
+    /** AI(21)/(10) 值校验：非空、≤20 位、仅可见 ASCII(0x21-0x7E) 且不含引号与反斜杠。 */
+    private static void requireGs1Value(String v, String field) {
+        if (v == null || v.isEmpty() || v.length() > 20
+                || !v.chars().allMatch(Gs1DataMatrix::isSafeGs1Char)) {
+            throw new IllegalArgumentException(
+                    field + " 必须非空、≤20 位、仅可见 ASCII 且不含引号/反斜杠，实际: " + v);
+        }
+    }
+
+    private static boolean isSafeGs1Char(int c) {
+        return c >= 0x21 && c <= 0x7E && c != '"' && c != '\\';
     }
 }

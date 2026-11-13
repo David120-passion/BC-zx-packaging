@@ -21,16 +21,16 @@ public class PrintService {
     }
 
     /** 查询打印机状态描述（"就绪"/"缺纸"/…），连接失败抛 IOException。 */
-    public String queryPrinterStatus() throws IOException {
+    public synchronized String queryPrinterStatus() throws IOException {
         return PrinterStatus.describe(newDriver().queryStatus());
     }
 
-    public void printLens(LensLabelData data)
+    public synchronized void printLens(LensLabelData data)
             throws IOException, TscPrinterDriver.PrinterNotReadyException {
         newDriver().print(buildLensTspl(data, config.getInt(ConfigKeys.PRINTER_DPI)));
     }
 
-    public void printInjector(InjectorLabelData data)
+    public synchronized void printInjector(InjectorLabelData data)
             throws IOException, TscPrinterDriver.PrinterNotReadyException {
         newDriver().print(buildInjectorTspl(data, config.getInt(ConfigKeys.PRINTER_DPI)));
     }

@@ -3,6 +3,7 @@ package com.hq.iol.config;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,6 +30,7 @@ public class ConfigService {
         return Integer.parseInt(get(key).trim());
     }
 
+    @Transactional
     public void saveAll(Map<String, String> entries) {
         entries.forEach((k, v) -> {
             jdbc.update("INSERT INTO app_config(cfg_key, cfg_value) VALUES(?,?) "
