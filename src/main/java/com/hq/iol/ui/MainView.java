@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/** 主界面：固定侧边导航、缓存页面和全局操作日志抽屉。 */
+/** 主界面：固定侧边导航与缓存页面，操作日志为独立导航页。 */
 @Component
 public class MainView {
 
@@ -39,15 +39,18 @@ public class MainView {
                 new SidebarNav.NavItem("打", "打印测试", "chip-blue"),
                 new SidebarNav.NavItem("秤", "称重测试", "chip-green"),
                 new SidebarNav.NavItem("设", "系统配置", "chip-gray"),
-                new SidebarNav.NavItem("签", "标签设计", "chip-blue")));
+                new SidebarNav.NavItem("签", "标签设计", "chip-blue"),
+                new SidebarNav.NavItem("志", "操作日志", "chip-gray")));
 
         List<Parent> pages = List.of(
-                printPanel.build(), scalePanel.build(), configPanel.build(), designerPanel.build());
+                printPanel.build(), scalePanel.build(), configPanel.build(), designerPanel.build(),
+                new LogDrawer(uiLog).build());
         List<String[]> headings = List.of(
                 new String[]{"打印测试", "选择模板、录入变量并验证标签输出"},
                 new String[]{"称重测试", "读取 EK-i 稳定重量并执行去皮/清零"},
                 new String[]{"系统配置", "管理打印机与电子秤连接参数"},
-                new String[]{"标签设计", "编辑模板布局、变量与打印效果"});
+                new String[]{"标签设计", "编辑模板布局、变量与打印效果"},
+                new String[]{"操作日志", "查看最近 500 条运行记录与错误信息"});
 
         Label title = new Label(headings.get(0)[0]);
         title.getStyleClass().add("page-title");
@@ -72,10 +75,8 @@ public class MainView {
             fade.play();
         });
 
-        Parent logDrawer = new LogDrawer(uiLog).build();
-        VBox center = new VBox(heading, content, logDrawer);
-        VBox.setMargin(content, new Insets(16, 18, 12, 18));
-        VBox.setMargin(logDrawer, new Insets(0, 18, 12, 18));
+        VBox center = new VBox(heading, content);
+        VBox.setMargin(content, new Insets(16, 18, 16, 18));
 
         BorderPane root = new BorderPane();
         root.setLeft(nav.node());

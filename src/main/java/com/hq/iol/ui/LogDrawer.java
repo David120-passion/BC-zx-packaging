@@ -15,7 +15,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 
 /**
- * 操作日志抽屉：标题 + 日志列表 + 收起/清空按钮。
+ * 独立操作日志页：标题 + 日志列表 + 清空按钮。
  * 数据完全来自 {@link UiLogService#entries()}（上限 500 条），组件不写日志。
  * <p>
  * 长日志：单元格不换行省略，横向滚动查看（单元格宽度按最长一条日志计算），
@@ -37,16 +37,10 @@ public class LogDrawer {
         ListView<String> list = new ListView<>(logs.entries());
         list.getStyleClass().add("log-list");
         list.setMinHeight(0);
-        list.setPrefHeight(150);
-        Button toggle = new Button("收起");
+        list.setPrefHeight(400);
+        VBox.setVgrow(list, javafx.scene.layout.Priority.ALWAYS);
         Button clear = new Button("清空");
         clear.setOnAction(e -> logs.entries().clear());
-        toggle.setOnAction(e -> {
-            boolean show = !list.isVisible();
-            list.setVisible(show);
-            list.setManaged(show);
-            toggle.setText(show ? "收起" : "展开");
-        });
         logs.entries().addListener((javafx.collections.ListChangeListener<String>) change ->
                 Platform.runLater(() -> {
                     // 空列表（如刚清空）时没有可滚动到的末行，跳过自动滚动
@@ -54,7 +48,7 @@ public class LogDrawer {
                         list.scrollTo(logs.entries().size() - 1);
                     }
                 }));
-        HBox actions = new HBox(8, toggle, clear);
+        HBox actions = new HBox(8, clear);
         actions.setAlignment(Pos.CENTER_LEFT);
         BorderPane header = new BorderPane(null, null, actions, null, title);
         VBox root = new VBox(8, header, list);
