@@ -188,13 +188,16 @@ public class DesignerPanel {
     }
 
     private void save() {
-        if (design == null || currentName == null) {
+        ObjectNode designSnapshot = design;
+        String nameSnapshot = currentName;
+        if (designSnapshot == null || nameSnapshot == null) {
             uiLog.error("无打开的模板");
             return;
         }
+        String json = designSnapshot.toString();
         runAsync(() -> {
-            repo.update(currentName, design.toString());
-            uiLog.info("模板已保存: " + currentName);
+            repo.update(nameSnapshot, json);
+            uiLog.info("模板已保存: " + nameSnapshot);
         });
     }
 
@@ -216,19 +219,28 @@ public class DesignerPanel {
         }
         runAsync(() -> {
             repo.delete(name);
-            javafx.application.Platform.runLater(this::reloadList);
+            javafx.application.Platform.runLater(() -> {
+                reloadList();
+                design = null;
+                currentName = null;
+                selected = null;
+                rebuildProps();
+                canvas.getGraphicsContext2D().clearRect(
+                        0, 0, canvas.getWidth(), canvas.getHeight());
+            });
             uiLog.info("模板已删除: " + name);
         });
     }
 
     private void testPrint() {
-        if (currentName == null) {
+        String nameSnapshot = currentName;
+        if (nameSnapshot == null) {
             uiLog.error("请先打开模板");
             return;
         }
         runAsync(() -> {
-            printService.print(currentName, Map.of());
-            uiLog.info("测试打印已下发: " + currentName + "（变量无值时保留原样）");
+            printService.print(nameSnapshot, Map.of());
+            uiLog.info("测试打印已下发: " + nameSnapshot + "（变量无值时保留原样）");
         });
     }
 
