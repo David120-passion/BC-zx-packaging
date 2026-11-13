@@ -185,6 +185,10 @@
     -fx-background-color: -hq-surface;
     -fx-effect: dropshadow(gaussian, rgba(0, 122, 255, 0.28), 7, 0.35, 0, 0);
 }
+.text-field:error {
+    -fx-border-color: -hq-red;
+    -fx-border-width: 1.5;
+}
 /* 扫码输入框：更大字号 + 等宽数字，便于核对条码 */
 .scan-field {
     -fx-font-size: 15px;

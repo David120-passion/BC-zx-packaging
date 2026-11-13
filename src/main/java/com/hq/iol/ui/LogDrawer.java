@@ -74,6 +74,7 @@ public class LogDrawer {
         }
         double width = max + CELL_H_PADDING;
         list.getProperties().put("log-cell-width", width);
+        list.refresh();
     }
 
     private static double textWidth(String s) {
@@ -90,6 +91,7 @@ public class LogDrawer {
             if (empty || item == null) {
                 setText(null);
                 setTooltip(null);
+                setPrefWidth(USE_COMPUTED_SIZE);
             } else {
                 setText(item);
                 // 长日志悬停查看完整内容；单元格内不换行省略
