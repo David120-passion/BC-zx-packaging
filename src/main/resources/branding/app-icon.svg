@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#55A7FF"/>
+      <stop offset="0.52" stop-color="#1478F2"/>
+      <stop offset="1" stop-color="#0757C8"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.98"/>
+      <stop offset="1" stop-color="#DDF1FF" stop-opacity="0.90"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="22" stdDeviation="24" flood-color="#003E91" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect x="48" y="48" width="928" height="928" rx="210" fill="url(#bg)"/>
+  <g fill="none" stroke="#EAF7FF" stroke-width="34" stroke-linecap="round" opacity="0.92">
+    <path d="M270 390 C145 265 105 490 230 548"/>
+    <path d="M655 390 C780 265 820 490 695 548"/>
+  </g>
+  <ellipse cx="462" cy="425" rx="252" ry="176" fill="url(#glass)" filter="url(#shadow)"/>
+  <ellipse cx="410" cy="365" rx="118" ry="62" fill="#FFFFFF" opacity="0.42"/>
+  <g filter="url(#shadow)">
+    <rect x="466" y="492" width="348" height="330" rx="66" fill="#FFFFFF"/>
+    <rect x="508" y="535" width="264" height="244" rx="30" fill="#EAF4FF"/>
+    <g fill="#0868D8">
+      <path d="M532 559h84v24h-60v60h-24z"/>
+      <path d="M644 559h24v24h-24zM692 559h24v24h-24zM620 607h24v24h-24zM668 607h48v24h-48zM532 667h24v24h-24zM580 667h24v24h-24zM628 667h24v24h-24zM692 667h24v48h-24zM532 715h24v24h-24zM580 715h60v24h-60zM644 715h24v24h-24z"/>
+    </g>
+  </g>
+</svg>
