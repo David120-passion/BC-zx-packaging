@@ -14,13 +14,15 @@ public class MainView {
     private final PrintPanel printPanel;
     private final ScalePanel scalePanel;
     private final ConfigPanel configPanel;
+    private final DesignerPanel designerPanel;
     private final UiLogService uiLog;
 
     public MainView(PrintPanel printPanel, ScalePanel scalePanel,
-                    ConfigPanel configPanel, UiLogService uiLog) {
+                    ConfigPanel configPanel, DesignerPanel designerPanel, UiLogService uiLog) {
         this.printPanel = printPanel;
         this.scalePanel = scalePanel;
         this.configPanel = configPanel;
+        this.designerPanel = designerPanel;
         this.uiLog = uiLog;
     }
 
@@ -28,7 +30,8 @@ public class MainView {
         TabPane tabs = new TabPane(
                 new Tab("打印测试", printPanel.build()),
                 new Tab("称重测试", scalePanel.build()),
-                new Tab("系统配置", configPanel.build()));
+                new Tab("系统配置", configPanel.build()),
+                new Tab("标签设计", designerPanel.build()));
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
         ListView<String> logView = new ListView<>(uiLog.entries());
