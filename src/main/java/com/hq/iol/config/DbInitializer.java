@@ -9,5 +9,11 @@ public class DbInitializer {
 
     public DbInitializer(JdbcTemplate jdbc) {
         jdbc.execute("CREATE TABLE IF NOT EXISTS app_config (cfg_key TEXT PRIMARY KEY, cfg_value TEXT)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS label_template ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                + "name TEXT UNIQUE NOT NULL,"
+                + "design_json TEXT NOT NULL,"
+                + "builtin INTEGER NOT NULL DEFAULT 0,"
+                + "updated_at TEXT NOT NULL)");
     }
 }
