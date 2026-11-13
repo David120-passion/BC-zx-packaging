@@ -23,6 +23,16 @@ class UiResourcesTest {
     }
 
     @Test
+    void splashExposesLifecycleContract() throws Exception {
+        Class<?> type = Class.forName("com.hq.iol.ui.SplashScreen");
+        type.getConstructor(javafx.scene.image.Image.class);
+        type.getMethod("show");
+        type.getMethod("updateStatus", String.class);
+        type.getMethod("finish", Runnable.class);
+        type.getMethod("close");
+    }
+
+    @Test
     void windowIconsAndIcoHaveDeclaredSizes() throws Exception {
         for (int size : new int[]{16, 32, 64, 256}) {
             var image = ImageIO.read(getClass().getResource("/icon-" + size + ".png"));
