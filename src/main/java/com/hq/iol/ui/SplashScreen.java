@@ -32,6 +32,11 @@ public class SplashScreen {
     private final Label statusLabel;
     private final StackPane root;
     private final ScaleTransition iconBreath;
+
+    /** 状态切换全部限定在 FX 线程；volatile 仅供 close() 的快速幂等判断。 */
+    private FadeTransition exitFade;
+    private boolean finishing;
+    private Runnable pendingFinishCallback;
     private volatile boolean closed;
 
     public SplashScreen(Image appIcon) {
@@ -125,41 +130,71 @@ public class SplashScreen {
         }
     }
 
-    /** 淡出并关闭启动画面，结束后回调 onFinished（可为 null）。必须在 FX 应用线程调用。 */
+    /** 淡出并关闭启动画面，结束后回调 onFinished（可为 null）。任意线程可调用，状态切换限定在 FX 线程。 */
     public void finish(Runnable onFinished) {
-        if (closed) {
-            if (onFinished != null) {
-                onFinished.run();
-            }
-            return;
-        }
-        closed = true;
-        FadeTransition fade = new FadeTransition(Duration.millis(320), root);
-        fade.setToValue(0);
-        fade.setOnFinished(e -> {
-            iconBreath.stop();
-            stage.close();
-            if (onFinished != null) {
-                onFinished.run();
-            }
-        });
-        fade.play();
+        runOnFxThread(() -> finishOnFxThread(onFinished));
     }
 
-    /** 立即关闭（启动失败时使用）。幂等，可任意线程调用。 */
+    private void finishOnFxThread(Runnable onFinished) {
+        if (closed) {
+            // close() 已取消启动流程，回调不再执行
+            return;
+        }
+        if (finishing) {
+            pendingFinishCallback = onFinished;
+            return;
+        }
+        finishing = true;
+        pendingFinishCallback = onFinished;
+        exitFade = new FadeTransition(Duration.millis(320), root);
+        exitFade.setToValue(0);
+        exitFade.setOnFinished(e -> completeFinishOnFxThread());
+        exitFade.play();
+    }
+
+    private void completeFinishOnFxThread() {
+        exitFade = null;
+        if (closed) {
+            return;
+        }
+        finishing = false;
+        closed = true;
+        Runnable callback = pendingFinishCallback;
+        pendingFinishCallback = null;
+        iconBreath.stop();
+        stage.close();
+        if (callback != null) {
+            callback.run();
+        }
+    }
+
+    /** 立即关闭（启动失败或取消时使用）。幂等，可任意线程调用；取消进行中的淡出及其回调。 */
     public void close() {
         if (closed) {
             return;
         }
+        runOnFxThread(this::closeOnFxThread);
+    }
+
+    private void closeOnFxThread() {
+        if (closed) {
+            return;
+        }
         closed = true;
+        pendingFinishCallback = null;
+        if (exitFade != null) {
+            exitFade.stop();
+            exitFade = null;
+        }
+        iconBreath.stop();
+        stage.close();
+    }
+
+    private static void runOnFxThread(Runnable action) {
         if (Platform.isFxApplicationThread()) {
-            iconBreath.stop();
-            stage.close();
+            action.run();
         } else {
-            Platform.runLater(() -> {
-                iconBreath.stop();
-                stage.close();
-            });
+            Platform.runLater(action);
         }
     }
 }

@@ -32,6 +32,8 @@ public class MainApp extends Application {
 
     private static final Logger log = LoggerFactory.getLogger(MainApp.class);
 
+    private final StartupFailureHandler startupFailures = new StartupFailureHandler();
+
     private ConfigurableApplicationContext ctx;
 
     public static void main(String[] args) {
@@ -40,10 +42,23 @@ public class MainApp extends Application {
 
     @Override
     public void start(Stage stage) {
-        loadBundledFonts();
-        List<Image> icons = loadIcons();
-        SplashScreen splash = new SplashScreen(icons.get(icons.size() - 1));
-        splash.show();
+        SplashScreen splash = null;
+        List<Image> icons = null;
+        try {
+            loadBundledFonts();
+            icons = loadIcons();
+            splash = new SplashScreen(icons.get(icons.size() - 1));
+            splash.show();
+        } catch (Exception e) {
+            // 字体/图标/启动画面初始化失败同样走统一的失败路径
+            failStartup(splash, e);
+            return;
+        }
+        startBoot(splash, icons, stage);
+    }
+
+    /** 后台 daemon 线程引导 Spring，完成后淡出启动画面并挂载主界面。 */
+    private void startBoot(SplashScreen splash, List<Image> icons, Stage stage) {
         Thread boot = new Thread(() -> {
             try {
                 splash.updateStatus("正在准备本地数据…");
@@ -55,7 +70,14 @@ public class MainApp extends Application {
                     try {
                         splash.updateStatus("正在加载主界面…");
                         prepareMainStage(stage, icons);
-                        splash.finish(() -> showMainStage(stage));
+                        splash.finish(() -> {
+                            // 回调由动画结束时异步执行，异常必须回到统一的失败路径
+                            try {
+                                showMainStage(stage);
+                            } catch (Exception e) {
+                                failStartup(splash, e);
+                            }
+                        });
                     } catch (Exception e) {
                         failStartup(splash, e);
                     }
@@ -109,12 +131,26 @@ public class MainApp extends Application {
 
     /** 启动失败：记录异常、关闭启动画面、提示错误并退出。 */
     private void failStartup(SplashScreen splash, Exception e) {
-        log.error("应用启动失败", e);
-        splash.close();
+        startupFailures.handle(e, new StartupFailureHandler.FxActions() {
+            @Override
+            public void closeSplash() {
+                if (splash != null) {
+                    splash.close();
+                }
+            }
+
+            @Override
+            public void showError(String message) {
+                showFatalError(message);
+            }
+        });
+    }
+
+    private void showFatalError(String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle("启动失败");
         alert.setHeaderText("应用启动失败，即将退出");
-        alert.setContentText(e.getMessage() != null ? e.getMessage() : e.toString());
+        alert.setContentText(message);
         alert.showAndWait();
         Platform.exit();
     }

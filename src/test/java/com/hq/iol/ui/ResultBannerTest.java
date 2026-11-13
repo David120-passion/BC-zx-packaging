@@ -3,6 +3,7 @@ package com.hq.iol.ui;
 import javafx.application.Platform;
 import javafx.scene.control.Label;
 import org.junit.jupiter.api.*;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -11,14 +12,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class ResultBannerTest {
     @BeforeAll
     static void startFx() throws Exception {
-        CountDownLatch ready = new CountDownLatch(1);
-        Platform.startup(ready::countDown);
-        assertTrue(ready.await(5, TimeUnit.SECONDS));
+        FxTestToolkit.start();
     }
 
     @AfterAll
     static void stopFx() {
-        Platform.exit();
+        // Toolkit 生命周期由 FxTestToolkit 统一管理
     }
 
     @Test
