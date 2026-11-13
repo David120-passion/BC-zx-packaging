@@ -26,8 +26,10 @@ class LabelSeedTest {
     void A线模板含GS1镜头模式DataMatrix与变量() {
         assertThat(LabelSeed.LENS_JSON).contains("\"type\":\"datamatrix\"");
         assertThat(LabelSeed.LENS_JSON).contains("\"gs1Mode\":\"lens\"");
+        // 注意：sterileDate 不在 content 字段中（仅 GS1 拼流必需），
+        // 由 Task 7 的 templateVariables 按 gs1Mode 并集补充，extract 不包含它
         assertThat(VariableSupport.extract(LabelSeed.LENS_JSON))
-                .contains("serialNo", "diNo", "sterileDate", "type", "power", "totalDia", "bodyDia");
+                .contains("serialNo", "diNo", "type", "power", "totalDia", "bodyDia");
     }
 
     @Test

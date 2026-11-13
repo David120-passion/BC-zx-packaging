@@ -14,8 +14,7 @@ public final class LabelSeed {
             {"id":"e4","type":"datamatrix","x":3,"y":16,"sizeMm":20,"moduleMm":0.75,"gs1":true,"gs1Mode":"lens","content":""},
             {"id":"e5","type":"text","x":25,"y":16.5,"fontSizeMm":3,"fontFamily":"默认","bold":false,"content":"(01){{diNo}}"},
             {"id":"e6","type":"text","x":25,"y":20,"fontSizeMm":3,"fontFamily":"默认","bold":false,"content":"(21){{serialNo}}"},
-            {"id":"e7","type":"text","x":25,"y":23.5,"fontSizeMm":3,"fontFamily":"默认","bold":false,"content":"灭菌:{{sterileDate}}"},
-            {"id":"e8","type":"text","x":3,"y":37,"fontSizeMm":3,"fontFamily":"默认","bold":false,"content":"总直径:{{totalDia}} 主体直径:{{bodyDia}}"}
+            {"id":"e7","type":"text","x":3,"y":37,"fontSizeMm":3,"fontFamily":"默认","bold":false,"content":"总直径:{{totalDia}} 主体直径:{{bodyDia}}"}
             ]}""";
 
     public static final String INJECTOR_JSON = """
