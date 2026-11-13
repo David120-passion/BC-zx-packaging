@@ -40,7 +40,7 @@ public class ScalePanel {
             try {
                 action.run();
             } catch (Exception ex) {
-                uiLog.error(ex.getMessage());
+                uiLog.error(ex.getMessage() != null ? ex.getMessage() : ex.toString());
             }
         });
         t.setDaemon(true);

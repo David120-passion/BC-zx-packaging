@@ -39,10 +39,29 @@ public class ConfigPanel {
         save.setOnAction(e -> {
             Map<String, String> values = new LinkedHashMap<>();
             fields.forEach((k, tf) -> values.put(k, tf.getText()));
-            configService.saveAll(values);
-            uiLog.info("配置已保存");
+            runAsync(() -> {
+                configService.saveAll(values);
+                uiLog.info("配置已保存");
+            });
         });
         g.addRow(row, save, new Label());
         return g;
+    }
+
+    private void runAsync(IoAction action) {
+        Thread t = new Thread(() -> {
+            try {
+                action.run();
+            } catch (Exception ex) {
+                uiLog.error(ex.getMessage() != null ? ex.getMessage() : ex.toString());
+            }
+        });
+        t.setDaemon(true);
+        t.start();
+    }
+
+    @FunctionalInterface
+    private interface IoAction {
+        void run() throws Exception;
     }
 }

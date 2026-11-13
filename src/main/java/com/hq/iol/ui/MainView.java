@@ -5,8 +5,6 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.VBox;
 import org.springframework.stereotype.Component;
 
 /** 主界面：上方 Tab 面板，下方操作日志列表。 */
@@ -34,7 +32,6 @@ public class MainView {
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
         ListView<String> logView = new ListView<>(uiLog.entries());
-        VBox.setVgrow(logView, Priority.ALWAYS);
 
         BorderPane root = new BorderPane();
         root.setTop(tabs);
