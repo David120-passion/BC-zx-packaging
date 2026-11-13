@@ -28,6 +28,10 @@ class PrintServiceTemplateTest {
     private final List<SingleConnectionDataSource> dataSources = new ArrayList<>();
 
     private PrintService newService() {
+        return newFixture().service();
+    }
+
+    private Fixture newFixture() {
         String url = "jdbc:sqlite:" + dir.resolve("t.db");
         SingleConnectionDataSource ds = new SingleConnectionDataSource(url, true);
         dataSources.add(ds);
@@ -36,7 +40,10 @@ class PrintServiceTemplateTest {
         ConfigService config = new ConfigService(jdbc, init);
         TemplateRepository repo = new TemplateRepository(jdbc, init);
         LabelSeed.seedAll(repo);
-        return new PrintService(config, repo);
+        return new Fixture(new PrintService(config, repo), repo);
+    }
+
+    private record Fixture(PrintService service, TemplateRepository repo) {
     }
 
     @AfterEach
@@ -61,6 +68,16 @@ class PrintServiceTemplateTest {
         assertThat(tspl).contains("DMATRIX");
         assertThat(tspl).contains("2605283500");
         assertThat(tspl).endsWith("PRINT 1,1\r\n");
+    }
+
+    @Test
+    void 打印优先使用模板Dpi而非全局默认值() {
+        Fixture fixture = newFixture();
+        fixture.repo().insert("DPI300", "{\"version\":1,\"dpi\":300,\"widthMm\":60,\"heightMm\":40,"
+                + "\"elements\":[{\"id\":\"t\",\"type\":\"text\",\"x\":3,\"y\":2,"
+                + "\"fontSizeMm\":3,\"content\":\"X\"}]}", false);
+        String tspl = fixture.service().buildTspl("DPI300", Map.of());
+        assertThat(tspl).contains("GRAPH 0,0,89,472,");
     }
 
     @Test

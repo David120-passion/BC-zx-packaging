@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hq.iol.label.DesignElements;
 import com.hq.iol.label.LabelRenderer;
 import com.hq.iol.label.LabelTemplate;
 import com.hq.iol.label.TemplateRepository;
@@ -39,12 +40,11 @@ import javafx.scene.layout.VBox;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** 标签设计器：模板列表、中央预览画布和右侧属性工作区。 */
+/** 通用标签设计器：模板库、组件面板、画布和类型化属性编辑。 */
 @Component
 public class DesignerPanel {
 
@@ -54,12 +54,12 @@ public class DesignerPanel {
     private final TemplateRepository repo;
     private final PrintService printService;
     private final UiLogService uiLog;
+    private final ElementPropertiesPanel properties;
 
     private final ListView<LabelTemplate> templateList = new ListView<>();
     private final Canvas canvas = new Canvas();
     private final StackPane paper = new StackPane(canvas);
     private final Label emptyCanvas = new Label("暂无模板，请新建或选择模板");
-    private final VBox propsBox = new VBox(8);
     private final Label varsLabel = new Label();
     private final ResultBanner banner = new ResultBanner();
     private final BooleanProperty busy = new SimpleBooleanProperty(false);
@@ -72,11 +72,17 @@ public class DesignerPanel {
     private String currentName;
     private boolean currentBuiltin;
     private JsonNode selected;
+    private int elementCounter;
+    private double dragOffsetX;
+    private double dragOffsetY;
+    private Parent propertiesView;
 
     public DesignerPanel(TemplateRepository repo, PrintService printService, UiLogService uiLog) {
         this.repo = repo;
         this.printService = printService;
         this.uiLog = uiLog;
+        this.properties = new ElementPropertiesPanel(
+                this::onDesignChanged, this::deleteSelectedElement, banner::fail);
     }
 
     public Parent build() {
@@ -87,11 +93,15 @@ public class DesignerPanel {
         Label listTitle = new Label("模板库");
         listTitle.getStyleClass().add("card-title");
         HBox listActions = new HBox(8, newButton, deleteButton);
-        VBox left = new VBox(10, listTitle, templateList, listActions);
+        Label componentTitle = new Label("组件（点击添加）");
+        componentTitle.getStyleClass().add("card-title");
+        GridPane palette = componentPalette();
+        VBox left = new VBox(10, listTitle, templateList, listActions, componentTitle, palette);
         left.getStyleClass().add("card");
-        left.setPrefWidth(205);
-        left.setMinWidth(180);
+        left.setPrefWidth(220);
+        left.setMinWidth(195);
         VBox.setVgrow(templateList, Priority.ALWAYS);
+        templateList.setMinHeight(130);
 
         saveButton.getStyleClass().add("btn-primary");
         HBox toolbar = new HBox(8, saveButton, printButton);
@@ -108,43 +118,55 @@ public class DesignerPanel {
         canvasScroll.setFitToWidth(true);
         canvasScroll.setFitToHeight(true);
         VBox.setVgrow(canvasScroll, Priority.ALWAYS);
-        VBox center = new VBox(10, toolbarCard, canvasScroll);
-        center.setMinWidth(0);
-
-        Label propsTitle = new Label("元素属性");
-        propsTitle.getStyleClass().add("card-title");
-        ScrollPane propsScroll = new ScrollPane(propsBox);
-        propsScroll.setFitToWidth(true);
-        propsScroll.getStyleClass().add("config-scroll");
-        VBox.setVgrow(propsScroll, Priority.ALWAYS);
-        VBox propsCard = new VBox(10, propsTitle, propsScroll);
-        propsCard.getStyleClass().add("card");
-        VBox.setVgrow(propsCard, Priority.ALWAYS);
 
         Label varsTitle = new Label("模板变量");
         varsTitle.getStyleClass().add("card-title");
         varsLabel.getStyleClass().add("hint");
         varsLabel.setWrapText(true);
-        Label previewHint = new Label("画布中的 GS1 码使用示例数据，仅用于布局预览；测试打印使用已保存模板。");
+        Label previewHint = new Label("GS1 使用示例数据预览；测试打印读取已保存模板。");
         previewHint.getStyleClass().add("hint");
         previewHint.setWrapText(true);
-        VBox varsCard = new VBox(8, varsTitle, varsLabel, previewHint);
-        varsCard.getStyleClass().add("card");
+        VBox varsCard = new VBox(6, varsTitle, varsLabel, previewHint);
+        varsCard.getStyleClass().add("toolbar-card");
+        VBox center = new VBox(10, toolbarCard, canvasScroll, varsCard);
+        center.setMinWidth(0);
 
-        VBox right = new VBox(12, propsCard, varsCard);
-        right.setPrefWidth(285);
-        right.setMinWidth(250);
+        propertiesView = properties.build();
+        ScrollPane propertiesScroll = new ScrollPane(propertiesView);
+        propertiesScroll.setFitToWidth(true);
+        propertiesScroll.getStyleClass().add("config-scroll");
+        propertiesScroll.setPrefWidth(325);
+        propertiesScroll.setMinWidth(285);
 
         BorderPane root = new BorderPane();
         root.setLeft(left);
         root.setCenter(center);
-        root.setRight(right);
+        root.setRight(propertiesScroll);
         BorderPane.setMargin(left, new Insets(0, 12, 0, 0));
-        BorderPane.setMargin(right, new Insets(0, 0, 0, 12));
+        BorderPane.setMargin(propertiesScroll, new Insets(0, 0, 0, 12));
 
         reloadList();
         busy.addListener((obs, oldValue, newValue) -> updateActionState());
         return root;
+    }
+
+    private GridPane componentPalette() {
+        GridPane grid = new GridPane();
+        grid.setHgap(8);
+        grid.setVgap(8);
+        int index = 0;
+        for (String type : DesignElements.types()) {
+            Button button = new Button(DesignElements.displayName(type));
+            button.getStyleClass().add("component-item");
+            button.setMaxWidth(Double.MAX_VALUE);
+            button.setOnAction(e -> addElement(type));
+            int row = index / 2;
+            int col = index % 2;
+            grid.add(button, col, row);
+            GridPane.setHgrow(button, Priority.ALWAYS);
+            index++;
+        }
+        return grid;
     }
 
     private void configureTemplateList() {
@@ -187,7 +209,10 @@ public class DesignerPanel {
         paper.getStyleClass().add("designer-paper");
         canvas.setOnMousePressed(e -> selectAt(e.getX(), e.getY()));
         canvas.setOnMouseDragged(e -> dragTo(e.getX(), e.getY()));
-        canvas.setOnMouseReleased(e -> renderPreview());
+        canvas.setOnMouseReleased(e -> {
+            onDesignChanged();
+            properties.setElement((ObjectNode) selected);
+        });
     }
 
     private void reloadList() {
@@ -213,21 +238,11 @@ public class DesignerPanel {
             currentName = template.name();
             currentBuiltin = template.builtin();
             design = (ObjectNode) MAPPER.readTree(template.designJson());
-            double width = design.path("widthMm").asDouble() * PX_PER_MM;
-            double height = design.path("heightMm").asDouble() * PX_PER_MM;
-            canvas.setWidth(width);
-            canvas.setHeight(height);
-            paper.setMinSize(width, height);
-            paper.setPrefSize(width, height);
-            paper.setMaxSize(width, height);
-            paper.setVisible(true);
-            paper.setManaged(true);
-            emptyCanvas.setVisible(false);
-            emptyCanvas.setManaged(false);
             selected = null;
-            renderPreview();
-            rebuildProps();
-            varsLabel.setText(String.join(", ", currentVariables()));
+            elementCounter = 0;
+            properties.setDesign(design);
+            properties.setElement(null);
+            onDesignChanged();
         } catch (Exception e) {
             banner.fail("模板加载失败：" + e.getMessage());
             uiLog.error("模板加载失败: " + e.getMessage());
@@ -240,13 +255,14 @@ public class DesignerPanel {
         currentName = null;
         currentBuiltin = false;
         selected = null;
+        elementCounter = 0;
         canvas.getGraphicsContext2D().clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
         paper.setVisible(false);
         paper.setManaged(false);
         emptyCanvas.setVisible(true);
         emptyCanvas.setManaged(true);
-        propsBox.getChildren().clear();
-        propsBox.getChildren().add(emptyLabel("请选择画布中的元素"));
+        properties.setDesign(null);
+        properties.setElement(null);
         varsLabel.setText("");
         updateActionState();
     }
@@ -259,17 +275,88 @@ public class DesignerPanel {
         printButton.setDisable(busy.get() || noTemplate);
         templateList.setDisable(busy.get());
         canvas.setDisable(busy.get());
+        if (propertiesView != null) {
+            propertiesView.setDisable(busy.get());
+        }
+    }
+
+    private void addElement(String type) {
+        if (design == null) {
+            banner.fail("请先新建或选择模板");
+            return;
+        }
+        ArrayNode elements;
+        if (design.path("elements") instanceof ArrayNode existing) {
+            elements = existing;
+        } else {
+            elements = design.putArray("elements");
+        }
+        ObjectNode element = DesignElements.create(type, nextElementIndex(type));
+        elements.add(element);
+        selected = element;
+        properties.setElement(element);
+        onDesignChanged();
+    }
+
+    private int nextElementIndex(String type) {
+        String prefix = type + "_";
+        while (true) {
+            elementCounter++;
+            String id = prefix + elementCounter;
+            boolean exists = false;
+            for (JsonNode element : design.path("elements")) {
+                if (id.equals(element.path("id").asText())) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                return elementCounter;
+            }
+        }
+    }
+
+    private void deleteSelectedElement() {
+        if (design == null || selected == null) {
+            return;
+        }
+        ArrayNode elements = (ArrayNode) design.path("elements");
+        for (int i = 0; i < elements.size(); i++) {
+            if (elements.get(i) == selected) {
+                elements.remove(i);
+                break;
+            }
+        }
+        selected = null;
+        properties.setElement(null);
+        onDesignChanged();
+    }
+
+    private void onDesignChanged() {
+        if (design == null) {
+            return;
+        }
+        updateCanvasSize();
+        renderPreview();
+        varsLabel.setText(String.join(", ", currentVariables()));
+    }
+
+    private void updateCanvasSize() {
+        double width = design.path("widthMm").asDouble(60) * PX_PER_MM;
+        double height = design.path("heightMm").asDouble(40) * PX_PER_MM;
+        canvas.setWidth(width);
+        canvas.setHeight(height);
+        paper.setMinSize(width, height);
+        paper.setPrefSize(width, height);
+        paper.setMaxSize(width, height);
+        paper.setVisible(true);
+        paper.setManaged(true);
+        emptyCanvas.setVisible(false);
+        emptyCanvas.setManaged(false);
     }
 
     private Set<String> currentVariables() {
-        Set<String> vars = new LinkedHashSet<>(VariableSupport.extract(design.toString()));
-        if (design.toString().contains("\"gs1Mode\":\"lens\"")) {
-            vars.addAll(Set.of("diNo", "sterileDate", "serialNo"));
-        }
-        if (design.toString().contains("\"gs1Mode\":\"injector\"")) {
-            vars.addAll(Set.of("diNo", "productionDate", "expiryDate", "lotNo"));
-        }
-        return vars;
+        return VariableSupport.extractRequired(design.toString());
     }
 
     private void renderPreview() {
@@ -287,12 +374,13 @@ public class DesignerPanel {
             uiLog.error("预览渲染失败: " + e.getMessage());
         }
         if (selected != null) {
-            g.setStroke(javafx.scene.paint.Color.RED);
+            DesignElements.Bounds b = DesignElements.bounds(selected);
+            g.setStroke(javafx.scene.paint.Color.web("#007AFF"));
             g.setLineWidth(1.5);
-            g.strokeRect(selected.path("x").asDouble() * PX_PER_MM,
-                    selected.path("y").asDouble() * PX_PER_MM,
-                    selected.path("sizeMm").asDouble(10) * PX_PER_MM,
-                    selected.path("sizeMm").asDouble(10) * PX_PER_MM);
+            g.setLineDashes(4, 4);
+            g.strokeRect(b.x() * PX_PER_MM, b.y() * PX_PER_MM,
+                    b.width() * PX_PER_MM, b.height() * PX_PER_MM);
+            g.setLineDashes();
         }
     }
 
@@ -311,79 +399,43 @@ public class DesignerPanel {
         if (design == null) {
             return;
         }
-        ArrayNode elements = (ArrayNode) design.path("elements");
         selected = null;
-        for (JsonNode element : elements) {
-            double ex = element.path("x").asDouble() * PX_PER_MM;
-            double ey = element.path("y").asDouble() * PX_PER_MM;
-            if (px >= ex && px <= ex + 40 && py >= ey && py <= ey + 40) {
+        ArrayNode elements = (ArrayNode) design.path("elements");
+        for (int i = elements.size() - 1; i >= 0; i--) {
+            JsonNode element = elements.get(i);
+            DesignElements.Bounds b = DesignElements.bounds(element);
+            double x = b.x() * PX_PER_MM;
+            double y = b.y() * PX_PER_MM;
+            double width = b.width() * PX_PER_MM;
+            double height = b.height() * PX_PER_MM;
+            if (px >= x && px <= x + width && py >= y && py <= y + height) {
                 selected = element;
+                dragOffsetX = px - b.x() * PX_PER_MM;
+                dragOffsetY = py - b.y() * PX_PER_MM;
+                break;
             }
         }
-        rebuildProps();
+        properties.setElement((ObjectNode) selected);
         renderPreview();
     }
 
     private void dragTo(double px, double py) {
-        if (selected == null) {
+        if (selected == null || design == null) {
             return;
         }
-        ((ObjectNode) selected).put("x", Math.round(px / PX_PER_MM * 2) / 2.0);
-        ((ObjectNode) selected).put("y", Math.round(py / PX_PER_MM * 2) / 2.0);
+        DesignElements.Bounds b = DesignElements.bounds(selected);
+        double maxX = Math.max(0, design.path("widthMm").asDouble() - b.width());
+        double maxY = Math.max(0, design.path("heightMm").asDouble() - b.height());
+        double x = snapAndClamp((px - dragOffsetX) / PX_PER_MM, maxX);
+        double y = snapAndClamp((py - dragOffsetY) / PX_PER_MM, maxY);
+        ((ObjectNode) selected).put("x", x);
+        ((ObjectNode) selected).put("y", y);
         renderPreview();
     }
 
-    private void rebuildProps() {
-        propsBox.getChildren().clear();
-        if (selected == null) {
-            propsBox.getChildren().add(emptyLabel("请选择画布中的元素"));
-            return;
-        }
-        Label type = new Label("类型：" + selected.path("type").asText());
-        type.getStyleClass().add("field-label");
-        propsBox.getChildren().add(type);
-        addNumberField("x", selected.path("x").asDouble());
-        addNumberField("y", selected.path("y").asDouble());
-        selected.fieldNames().forEachRemaining(field -> {
-            if (!"id".equals(field) && !"type".equals(field) && !"x".equals(field) && !"y".equals(field)) {
-                JsonNode value = selected.path(field);
-                TextField input = new TextField(value.isNumber()
-                        ? String.valueOf(value.asDouble()) : value.asText());
-                input.setOnAction(e -> applyProp(field, input.getText()));
-                propsBox.getChildren().addAll(fieldLabel(field), input);
-            }
-        });
-    }
-
-    private void addNumberField(String field, double value) {
-        TextField input = new TextField(String.valueOf(value));
-        input.setOnAction(e -> applyProp(field, input.getText()));
-        propsBox.getChildren().addAll(fieldLabel(field), input);
-    }
-
-    private static Label fieldLabel(String text) {
-        Label label = new Label(text);
-        label.getStyleClass().add("field-label");
-        return label;
-    }
-
-    private static Label emptyLabel(String text) {
-        Label label = new Label(text);
-        label.getStyleClass().add("empty-state");
-        label.setWrapText(true);
-        return label;
-    }
-
-    private void applyProp(String field, String raw) {
-        if (selected == null) {
-            return;
-        }
-        try {
-            ((ObjectNode) selected).put(field, Double.parseDouble(raw));
-        } catch (NumberFormatException e) {
-            ((ObjectNode) selected).put(field, raw);
-        }
-        renderPreview();
+    private static double snapAndClamp(double value, double max) {
+        double snapped = Math.round(value * 2) / 2.0;
+        return Math.max(0, Math.min(max, snapped));
     }
 
     private void save() {
@@ -475,10 +527,14 @@ public class DesignerPanel {
             TextField field = new TextField();
             field.setPromptText("请输入 " + variable);
             fields.put(variable, field);
-            grid.addRow(row++, fieldLabel(variable), field);
+            Label label = new Label(variable);
+            label.getStyleClass().add("field-label");
+            grid.addRow(row++, label, field);
         }
         if (variables.isEmpty()) {
-            grid.add(emptyLabel("此模板无需录入变量"), 0, 0);
+            Label empty = new Label("此模板无需录入变量");
+            empty.getStyleClass().add("empty-state");
+            grid.add(empty, 0, 0);
         }
         dialog.getDialogPane().setContent(new ScrollPane(grid));
         dialog.getDialogPane().setPrefWidth(460);

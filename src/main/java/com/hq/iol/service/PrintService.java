@@ -11,7 +11,6 @@ import com.hq.iol.label.VariableSupport;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,21 +34,14 @@ public class PrintService {
     /** 模板变量 = design 中的 {{var}} ∪ GS1 模式必需变量。 */
     public Set<String> templateVariables(String templateName) {
         LabelTemplate t = templates.findByName(templateName);
-        Set<String> vars = new LinkedHashSet<>(VariableSupport.extract(t.designJson()));
-        if (t.designJson().contains("\"gs1Mode\":\"lens\"")) {
-            vars.addAll(Set.of("diNo", "sterileDate", "serialNo"));
-        }
-        if (t.designJson().contains("\"gs1Mode\":\"injector\"")) {
-            vars.addAll(Set.of("diNo", "productionDate", "expiryDate", "lotNo"));
-        }
-        return vars;
+        return VariableSupport.extractRequired(t.designJson());
     }
 
     /** 查模板并渲染 TSPL（包级可见供测试）。 */
     String buildTspl(String templateName, Map<String, String> vars) {
         LabelTemplate t = templates.findByName(templateName);
-        return LabelRenderer.renderTspl(t.designJson(), vars,
-                config.getInt(ConfigKeys.PRINTER_DPI));
+        int dpi = LabelRenderer.templateDpi(t.designJson(), config.getInt(ConfigKeys.PRINTER_DPI));
+        return LabelRenderer.renderTspl(t.designJson(), vars, dpi);
     }
 
     /** 查询打印机状态描述。 */

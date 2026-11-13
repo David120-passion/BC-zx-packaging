@@ -33,6 +33,27 @@ public final class VariableSupport {
         return vars;
     }
 
+    /** 普通占位变量与启用了 GS1 的元素所必需的业务变量。 */
+    public static Set<String> extractRequired(String designJson) {
+        Set<String> vars = new LinkedHashSet<>(extract(designJson));
+        try {
+            JsonNode elements = MAPPER.readTree(designJson).path("elements");
+            for (JsonNode element : elements) {
+                if (!element.path("gs1").asBoolean(false)) {
+                    continue;
+                }
+                if ("lens".equals(element.path("gs1Mode").asText("lens"))) {
+                    vars.addAll(Set.of("diNo", "sterileDate", "serialNo"));
+                } else if ("injector".equals(element.path("gs1Mode").asText())) {
+                    vars.addAll(Set.of("diNo", "productionDate", "expiryDate", "lotNo"));
+                }
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("design JSON 无法解析: " + e.getMessage(), e);
+        }
+        return vars;
+    }
+
     private static void collect(String text, Set<String> vars) {
         Matcher m = VAR.matcher(text);
         while (m.find()) {

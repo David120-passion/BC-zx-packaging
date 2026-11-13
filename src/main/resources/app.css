@@ -511,6 +511,26 @@
 .designer-canvas, .designer-canvas > .viewport { -fx-background-color: #E9EAF0; }
 .designer-paper { -fx-background-color: white; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.16), 18, 0, 0, 4); }
 .template-badge { -fx-background-color: -hq-accent-tint; -fx-text-fill: -hq-accent; -fx-background-radius: 999; -fx-padding: 2 7 2 7; -fx-font-size: 10px; }
+.component-item {
+    -fx-background-color: -hq-surface;
+    -fx-border-color: -hq-border;
+    -fx-border-radius: 9;
+    -fx-background-radius: 9;
+    -fx-padding: 8 6 8 6;
+    -fx-font-size: 12px;
+    -fx-text-fill: -hq-text-2;
+}
+.component-item:hover {
+    -fx-background-color: -hq-accent-tint;
+    -fx-border-color: -hq-accent;
+    -fx-text-fill: -hq-accent;
+}
+.btn-danger {
+    -fx-background-color: -hq-red-tint;
+    -fx-border-color: transparent;
+    -fx-text-fill: -hq-red-text;
+}
+.btn-danger:hover { -fx-background-color: rgba(255, 59, 48, 0.18); }
 
 /* ════════════════ 状态与校验 ════════════════ */
 .empty-state { -fx-text-fill: -hq-text-3; -fx-font-size: 13px; -fx-alignment: center; }
