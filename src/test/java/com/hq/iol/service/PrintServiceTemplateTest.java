@@ -5,6 +5,7 @@ import com.hq.iol.config.ConfigService;
 import com.hq.iol.config.DbInitializer;
 import com.hq.iol.label.LabelSeed;
 import com.hq.iol.label.TemplateRepository;
+import io.vertx.core.Vertx;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -26,6 +28,7 @@ class PrintServiceTemplateTest {
     Path dir;
 
     private final List<SingleConnectionDataSource> dataSources = new ArrayList<>();
+    private Vertx vertx;
 
     private PrintService newService() {
         return newFixture().service();
@@ -40,15 +43,19 @@ class PrintServiceTemplateTest {
         ConfigService config = new ConfigService(jdbc, init);
         TemplateRepository repo = new TemplateRepository(jdbc, init);
         LabelSeed.seedAll(repo);
-        return new Fixture(new PrintService(config, repo), repo);
+        vertx = Vertx.vertx();
+        return new Fixture(new PrintService(config, repo, vertx), repo);
     }
 
     private record Fixture(PrintService service, TemplateRepository repo) {
     }
 
     @AfterEach
-    void releaseConnections() {
+    void releaseConnections() throws Exception {
         dataSources.forEach(SingleConnectionDataSource::close);
+        if (vertx != null) {
+            vertx.close().toCompletionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
+        }
     }
 
     @Test

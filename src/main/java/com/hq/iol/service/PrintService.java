@@ -8,6 +8,7 @@ import com.hq.iol.label.LabelRenderer;
 import com.hq.iol.label.LabelTemplate;
 import com.hq.iol.label.TemplateRepository;
 import com.hq.iol.label.VariableSupport;
+import io.vertx.core.Vertx;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -21,10 +22,12 @@ public class PrintService {
 
     private final ConfigService config;
     private final TemplateRepository templates;
+    private final Vertx vertx;
 
-    public PrintService(ConfigService config, TemplateRepository templates) {
+    public PrintService(ConfigService config, TemplateRepository templates, Vertx vertx) {
         this.config = config;
         this.templates = templates;
+        this.vertx = vertx;
     }
 
     public List<LabelTemplate> listTemplates() {
@@ -56,7 +59,7 @@ public class PrintService {
     }
 
     private TscPrinterDriver newDriver() {
-        return new TscPrinterDriver(config.get(ConfigKeys.PRINTER_HOST),
+        return new TscPrinterDriver(vertx, config.get(ConfigKeys.PRINTER_HOST),
                 config.getInt(ConfigKeys.PRINTER_PORT), 2000);
     }
 }

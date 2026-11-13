@@ -14,6 +14,7 @@ final class FakeTscPrinterServer implements AutoCloseable {
     private final Thread thread;
     private final ByteArrayOutputStream received = new ByteArrayOutputStream();
     private volatile int statusToReturn = 0x00;
+    private volatile boolean respond = true;
 
     FakeTscPrinterServer() throws IOException {
         server = new ServerSocket(0);
@@ -30,6 +31,10 @@ final class FakeTscPrinterServer implements AutoCloseable {
         this.statusToReturn = status;
     }
 
+    void setRespond(boolean respond) {
+        this.respond = respond;
+    }
+
     byte[] received() {
         return received.toByteArray();
     }
@@ -44,8 +49,10 @@ final class FakeTscPrinterServer implements AutoCloseable {
                 if (b == 0x1B) { // ESC：按 3 字节读完 <ESC>!?，回应状态字节
                     in.read();
                     in.read();
-                    out.write(statusToReturn);
-                    out.flush();
+                    if (respond) {
+                        out.write(statusToReturn);
+                        out.flush();
+                    }
                 } else {
                     received.write(b);
                 }
