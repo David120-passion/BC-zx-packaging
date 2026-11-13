@@ -1,5 +1,6 @@
 package com.hq.iol;
 
+import com.hq.iol.ui.MainView;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
@@ -33,8 +34,7 @@ public class MainApp extends Application {
                         .web(WebApplicationType.NONE)
                         .headless(false)
                         .run();
-                Platform.runLater(() ->
-                        root.setCenter(new Label("骨架启动成功（Task 10 替换为主界面）")));
+                Platform.runLater(() -> root.setCenter(ctx.getBean(MainView.class).build()));
             } catch (Exception e) {
                 Platform.runLater(() ->
                         root.setCenter(new Label("Spring 启动失败: " + e.getMessage())));
