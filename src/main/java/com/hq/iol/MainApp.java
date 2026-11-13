@@ -28,6 +28,7 @@ public class MainApp extends Application {
 
         Thread boot = new Thread(() -> {
             try {
+                java.nio.file.Files.createDirectories(java.nio.file.Path.of("data"));
                 ctx = new SpringApplicationBuilder(SpringMain.class)
                         .web(WebApplicationType.NONE)
                         .headless(false)
