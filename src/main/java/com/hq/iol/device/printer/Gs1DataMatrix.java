@@ -2,64 +2,96 @@ package com.hq.iol.device.printer;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
-/**
- * GS1 DataMatrix 码流构造器，输出 TSPL DMATRIX 指令所需转义字符串。
- * FNC1 规则：码流首位必须 FNC1；可变长 AI 之后需补 FNC1，定长 AI 之后不需要。
- * 本项目可变长 AI 均位于末位，故只有前导 FNC1。
- */
+/** 通用 GS1 AI 表达式转 TSPL DMATRIX 码流。 */
 public final class Gs1DataMatrix {
 
-    /** TSPL 中的 FNC1 转义，见手册 P50。 */
     private static final String FNC1 = "~1";
     private static final DateTimeFormatter YYMMDD = DateTimeFormatter.ofPattern("yyMMdd");
 
     private Gs1DataMatrix() {
     }
 
-    /** A 线晶体标签：(01) + (11) + (17) + (21)序列号。 */
-    public static String forLens(String udiDi, LocalDate produced,
-                                 LocalDate expiry, String serialNo) {
-        requireDigits(udiDi, 14, "UDI-DI");
-        requireGs1Value(serialNo, "序列号");
-        return FNC1 + "01" + udiDi
-                + "11" + produced.format(YYMMDD)
-                + "17" + expiry.format(YYMMDD)
-                + "21" + escape(serialNo);
-    }
-
-    /** B 线推注器标签：(01) + (11) + (17) + (10)批次号。 */
-    public static String forInjector(String udiDi, LocalDate produced,
-                                     LocalDate expiry, String lotNo) {
-        requireDigits(udiDi, 14, "UDI-DI");
-        requireGs1Value(lotNo, "批次号");
-        return FNC1 + "01" + udiDi
-                + "11" + produced.format(YYMMDD)
-                + "17" + expiry.format(YYMMDD)
-                + "10" + escape(lotNo);
-    }
-
-    /** TSPL 中 '~' 为转义前缀，内容里的字面 '~' 须写成 '~~'。 */
-    private static String escape(String s) {
-        return s.replace("~", "~~");
-    }
-
-    private static void requireDigits(String v, int len, String field) {
-        if (v == null || v.length() != len || !v.chars().allMatch(Character::isDigit)) {
-            throw new IllegalArgumentException(field + " 必须为 " + len + " 位数字，实际: " + v);
+    public static String build(String expression) {
+        if (expression == null || expression.isBlank()) {
+            throw new IllegalArgumentException("GS1 内容不能为空");
         }
+        String input = expression.trim();
+        if (input.startsWith(FNC1)) {
+            input = input.substring(FNC1.length());
+        }
+        StringBuilder stream = new StringBuilder();
+        int position = 0;
+        while (position < input.length()) {
+            if (input.charAt(position) == '(') {
+                int close = input.indexOf(')', position);
+                if (close < 0) {
+                    throw new IllegalArgumentException("GS1 AI 括号未闭合: " + input);
+                }
+                String ai = input.substring(position + 1, close);
+                if (!ai.matches("\\d{2,4}")) {
+                    throw new IllegalArgumentException("GS1 AI 须为 2–4 位数字: " + ai);
+                }
+                int next = input.indexOf('(', close + 1);
+                String value = input.substring(close + 1, next >= 0 ? next : input.length());
+                if (value.isEmpty() || value.indexOf(')') >= 0) {
+                    throw new IllegalArgumentException("GS1 AI " + ai + " 的内容为空或括号不匹配");
+                }
+                stream.append(ai).append(formatValue(ai, value));
+                position = next >= 0 ? next : input.length();
+            } else {
+                int next = input.indexOf('(', position);
+                String value = input.substring(position, next >= 0 ? next : input.length());
+                if (value.indexOf(')') >= 0) {
+                    throw new IllegalArgumentException("GS1 AI 括号不匹配: " + value);
+                }
+                stream.append(value);
+                position = next >= 0 ? next : input.length();
+            }
+        }
+        if (stream.length() == 0) {
+            throw new IllegalArgumentException("GS1 内容不能为空");
+        }
+        String content = stream.toString();
+        if (!content.chars().allMatch(Gs1DataMatrix::isSafeChar)) {
+            throw new IllegalArgumentException("GS1 内容仅支持可见 ASCII，且不能包含引号或反斜杠");
+        }
+        return FNC1 + escape(content);
     }
 
-    /** AI(21)/(10) 值校验：非空、≤20 位、仅可见 ASCII(0x21-0x7E) 且不含引号与反斜杠。 */
-    private static void requireGs1Value(String v, String field) {
-        if (v == null || v.isEmpty() || v.length() > 20
-                || !v.chars().allMatch(Gs1DataMatrix::isSafeGs1Char)) {
+    private static String formatValue(String ai, String value) {
+        if (!"11".equals(ai) && !"17".equals(ai)) {
+            return value;
+        }
+        if (value.matches("\\d{6}")) {
+            return value;
+        }
+        try {
+            return LocalDate.parse(value).format(YYMMDD);
+        } catch (DateTimeParseException e) {
             throw new IllegalArgumentException(
-                    field + " 必须非空、≤20 位、仅可见 ASCII 且不含引号/反斜杠，实际: " + v);
+                    "GS1 AI " + ai + " 日期须为 yyMMdd 或 yyyy-MM-dd，实际值: " + value, e);
         }
     }
 
-    private static boolean isSafeGs1Char(int c) {
-        return c >= 0x21 && c <= 0x7E && c != '"' && c != '\\';
+    private static boolean isSafeChar(int c) {
+        return c >= 0x20 && c <= 0x7E && c != '"' && c != '\\';
+    }
+
+    private static String escape(String value) {
+        StringBuilder escaped = new StringBuilder();
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '~' && i + 1 < value.length() && value.charAt(i + 1) == '1') {
+                escaped.append(FNC1);
+                i++;
+            } else if (c == '~') {
+                escaped.append("~~");
+            } else {
+                escaped.append(c);
+            }
+        }
+        return escaped.toString();
     }
 }

@@ -35,8 +35,8 @@ class GenericLabelRendererTest {
             String json = design.toString();
             assertThatCode(() -> {
                 BufferedImage preview = LabelRenderer.renderPreview(json, Map.of());
-                assertThat(preview.getWidth()).isEqualTo(240);
-                assertThat(preview.getHeight()).isEqualTo(160);
+                assertThat(preview.getWidth()).isEqualTo(480);
+                assertThat(preview.getHeight()).isEqualTo(320);
                 assertThat(LabelRenderer.renderTspl(json, Map.of(), 600)).endsWith("PRINT 1,1\r\n");
             }).as(type).doesNotThrowAnyException();
         }
@@ -49,7 +49,7 @@ class GenericLabelRendererTest {
         barcode.put("rotation", 90);
         ((ArrayNode) design.path("elements")).add(barcode);
         String tspl = LabelRenderer.renderTspl(design.toString(), Map.of(), 600);
-        assertThat(tspl).contains("GRAPH 0,0,");
+        assertThat(tspl).contains("BITMAP 0,0,178,945,0,");
         assertThat(tspl).doesNotContain("BARCODE ");
     }
 
@@ -86,7 +86,24 @@ class GenericLabelRendererTest {
         image.put("source", "data:image/png;base64," + Base64.getEncoder().encodeToString(bytes.toByteArray()));
         ((ArrayNode) design.path("elements")).add(image);
         BufferedImage preview = LabelRenderer.renderPreview(design.toString(), Map.of());
-        assertThat(preview.getRGB(30, 30)).isEqualTo(0xFF000000);
+        assertThat(preview.getRGB(60, 60)).isEqualTo(0xFF000000);
+    }
+
+    @Test
+    void 日期错误提示字段与期望格式() {
+        ObjectNode design = design();
+        var dataMatrix = DesignElements.create("datamatrix", 1);
+        dataMatrix.put("gs1", true);
+        dataMatrix.put("contentMode", "variable");
+        dataMatrix.put("content", "(01){{diNo}}(11){{sterileDate}}(21){{serialNo}}");
+        ((ArrayNode) design.path("elements")).add(dataMatrix);
+        Map<String, String> vars = Map.of(
+                "diNo", "06912345678901", "sterileDate", "1", "serialNo", "2601010101");
+        assertThatThrownBy(() -> LabelRenderer.renderTspl(design.toString(), vars, 600))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("AI 11")
+                .hasMessageContaining("yyyy-MM-dd")
+                .hasMessageContaining("实际值: 1");
     }
 
     @Test

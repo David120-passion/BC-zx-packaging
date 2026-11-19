@@ -10,30 +10,56 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ScaleReadingTest {
 
     @Test
-    void 解析稳定重量帧() throws Exception {
-        ScaleReading r = ScaleReading.parse("ST,+001234.5   g\r\n");
-        assertThat(r.status()).isEqualTo("ST");
-        assertThat(r.value()).isEqualByComparingTo(new BigDecimal("1234.5"));
-        assertThat(r.unit()).isEqualTo("g");
+    void 解析完整稳定重量数据组() throws Exception {
+        ScaleReading reading = ScaleReading.parse(frame("STEADY", "WT:12.50g"));
+        assertThat(reading.status()).isEqualTo("STEADY");
+        assertThat(reading.value()).isEqualByComparingTo(new BigDecimal("12.50"));
+        assertThat(reading.unit()).isEqualTo("g");
+        assertThat(reading.mode()).isEqualTo("NORMAL");
+        assertThat(reading.fields()).containsEntry("TYPE", "6002");
+        assertThat(reading.isStable()).isTrue();
+        assertThat(reading.isGram()).isTrue();
     }
 
     @Test
-    void 解析负数与超载帧() throws Exception {
-        assertThat(ScaleReading.parse("US,-000012.3   g\r\n").status()).isEqualTo("US");
-        assertThat(ScaleReading.parse("OL,+999999.9   g\r\n").status()).isEqualTo("OL");
+    void 支持负数与不稳定状态() throws Exception {
+        ScaleReading reading = ScaleReading.parse(frame("UNSTEADY", "WT:-0.025g"));
+        assertThat(reading.value()).isEqualByComparingTo(new BigDecimal("-0.025"));
+        assertThat(reading.isStable()).isFalse();
+        assertThat(reading.hasDeviceError()).isFalse();
     }
 
     @Test
-    void 小数点被配置为逗号时归一化() throws Exception {
-        ScaleReading r = ScaleReading.parse("ST,+001234,5   g\r\n");
-        assertThat(r.value()).isEqualByComparingTo(new BigDecimal("1234.5"));
+    void 区分超载欠载与设备错误() throws Exception {
+        assertThat(ScaleReading.parse(frame("OVERLOAD", "WT:999.9g")).statusDescription())
+                .isEqualTo("超载");
+        assertThat(ScaleReading.parse(frame("UNDERLOAD", "WT:-999.9g")).hasDeviceError()).isTrue();
+        assertThat(ScaleReading.parse(frame("ERROR1", "WT:0.00g")).statusDescription())
+                .isEqualTo("AD 错误");
     }
 
     @Test
-    void 帧长度或格式非法抛协议异常() {
+    void 缺重量或结束行时抛出协议异常() {
+        assertThatThrownBy(() -> ScaleReading.parse("STATUS:STEADY\r\n----COMPLETE----\r\n"))
+                .isInstanceOf(ScaleProtocolException.class)
+                .hasMessageContaining("WT");
+        assertThatThrownBy(() -> ScaleReading.parse("STATUS:STEADY\r\nWT:0.00g\r\n"))
+                .isInstanceOf(ScaleProtocolException.class)
+                .hasMessageContaining("COMPLETE");
+    }
+
+    @Test
+    void 非法状态和重量不会被当成零克() {
+        assertThatThrownBy(() -> ScaleReading.parse(frame("UNKNOWN", "WT:0.00g")))
+                .isInstanceOf(ScaleProtocolException.class);
+        assertThatThrownBy(() -> ScaleReading.parse(frame("STEADY", "WT:abc")))
+                .isInstanceOf(ScaleProtocolException.class);
         assertThatThrownBy(() -> ScaleReading.parse("GARBAGE"))
                 .isInstanceOf(ScaleProtocolException.class);
-        assertThatThrownBy(() -> ScaleReading.parse("XX,+001234.5   g\r\n"))
-                .isInstanceOf(ScaleProtocolException.class);
+    }
+
+    static String frame(String status, String weight) {
+        return "TYPE:6002\r\nID:1\r\nMODE:NORMAL\r\nSTATUS:" + status
+                + "\r\n" + weight + "\r\n----COMPLETE----\r\n";
     }
 }

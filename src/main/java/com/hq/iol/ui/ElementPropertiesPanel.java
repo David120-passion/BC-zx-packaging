@@ -3,12 +3,14 @@ package com.hq.iol.ui;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hq.iol.label.BarcodeSupport;
 import com.hq.iol.label.DesignElements;
+import com.hq.iol.label.TemplateVariable;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
@@ -22,8 +24,10 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /** 标签尺寸与组件类型化属性表单，直接编辑当前 design JSON。 */
 public class ElementPropertiesPanel {
@@ -31,10 +35,13 @@ public class ElementPropertiesPanel {
     private final Runnable onChange;
     private final Runnable onDelete;
     private final Consumer<String> onError;
+    private final Supplier<List<TemplateVariable>> variableSupplier;
     private final VBox root = new VBox(12);
     private final VBox labelSettings = new VBox(10);
     private final VBox elementSettings = new VBox(8);
     private final Label elementTitle = new Label("组件属性");
+    private final Label labelTitle = new Label();
+    private boolean laserMode;
     private final Button deleteButton = new Button("删除组件");
     private final Button chooseImageButton = new Button("选择图片");
 
@@ -43,13 +50,23 @@ public class ElementPropertiesPanel {
     private Label dotsHint;
 
     public ElementPropertiesPanel(Runnable onChange, Runnable onDelete, Consumer<String> onError) {
+        this(onChange, onDelete, onError, List::of);
+    }
+
+    public ElementPropertiesPanel(Runnable onChange, Runnable onDelete, Consumer<String> onError,
+                                  Supplier<List<TemplateVariable>> variableSupplier) {
         this.onChange = onChange;
         this.onDelete = onDelete;
         this.onError = onError;
+        this.variableSupplier = variableSupplier;
+    }
+
+    public void setLaserMode(boolean laserMode) {
+        this.laserMode = laserMode;
     }
 
     public Parent build() {
-        Label labelTitle = new Label("标签设置");
+        labelTitle.setText(laserMode ? "打标设置" : "标签设置");
         labelTitle.getStyleClass().add("card-title");
         VBox labelCard = new VBox(10, labelTitle, labelSettings);
         labelCard.getStyleClass().add("card");
@@ -77,7 +94,12 @@ public class ElementPropertiesPanel {
         dotsHint.setWrapText(true);
         addRootNumber("宽度 (mm)", "widthMm", 20, 150);
         addRootNumber("高度 (mm)", "heightMm", 10, 100);
-        addRootChoice("DPI", "dpi", options("203", 203, "300", 300, "600", 600));
+        if (laserMode) {
+            addRootChoice("加工笔号", "pen", options("0", 0, "1", 1, "2", 2, "3", 3,
+                    "4", 4, "5", 5, "6", 6, "7", 7));
+        } else {
+            addRootChoice("DPI", "dpi", options("203", 203, "300", 300, "600", 600));
+        }
         labelSettings.getChildren().add(dotsHint);
         updateDots();
     }
@@ -101,7 +123,7 @@ public class ElementPropertiesPanel {
             case "barcode" -> barcodeProperties();
             case "qrcode" -> {
                 addNumber("尺寸 (mm)", "sizeMm", 2, 100, false);
-                addText("内容", "content");
+                addContentField();
                 addChoice("容错级别", "errorLevel", options(
                         "L (7%)", "L", "M (15%)", "M", "Q (25%)", "Q", "H (30%)", "H"));
                 addRotation();
@@ -155,7 +177,7 @@ public class ElementPropertiesPanel {
 
     private void textProperties() {
         addSize();
-        addText("内容", "content");
+        addContentField();
         textStyleProperties();
         addChoice("对齐", "textAlign", options("左对齐", "left", "居中", "center", "右对齐", "right"));
         addNumber("字间距 (mm)", "letterSpacingMm", 0, 5, false);
@@ -165,21 +187,19 @@ public class ElementPropertiesPanel {
     private void dataMatrixProperties() {
         addNumber("尺寸 (mm)", "sizeMm", 2, 100, false);
         addNumber("模块宽 (mm)", "moduleMm", 0.1, 5, false);
-        if (!element.path("gs1").asBoolean(false)) {
-            addText("内容", "content");
-        }
         addBoolean("GS1 模式", "gs1", true);
         if (element.path("gs1").asBoolean(false)) {
-            addChoice("GS1 模板", "gs1Mode", options("A 线晶体", "lens", "B 线推注器", "injector"));
-            elementSettings.getChildren().add(empty("GS1 固定 0°，打印使用原生 c126"));
+            addGs1ContentField();
+            elementSettings.getChildren().add(empty("GS1 固定 0°；AI 示例：(01){{diNo}}；网址可使用 (8200){{url}}"));
         } else {
+            addContentField();
             addRotation();
         }
     }
 
     private void barcodeProperties() {
         addSize();
-        addText("内容", "content");
+        addContentField();
         Map<String, String> types = new LinkedHashMap<>();
         BarcodeSupport.types().forEach(type -> types.put(type, type));
         addChoice("条码类型", "barcodeType", types);
@@ -209,9 +229,170 @@ public class ElementPropertiesPanel {
         addChoice("旋转", "rotation", options("0°", 0, "90°", 90, "180°", 180, "270°", 270));
     }
 
+    private void addGs1ContentField() {
+        List<TemplateVariable> variables = variableSupplier.get();
+        ObjectNode target = element;
+        ComboBox<String> modeBox = new ComboBox<>();
+        modeBox.getItems().addAll("固定值", "变量");
+        modeBox.setValue("variable".equals(target.path("contentMode").asText()) ? "变量" : "固定值");
+
+        TextField expression = new TextField(target.path("content").asText(""));
+        expression.setPrefColumnCount(12);
+        expression.setMinWidth(0);
+        expression.setMaxWidth(Double.MAX_VALUE);
+        ComboBox<TemplateVariable> variableBox = new ComboBox<>();
+        variableBox.getItems().setAll(variables);
+        variableBox.setCellFactory(view -> variableCell());
+        variableBox.setButtonCell(variableCell());
+        variableBox.setPromptText(variables.isEmpty() ? "请先在变量管理中新增变量" : "选择变量");
+        variableBox.setMinWidth(0);
+        variableBox.setMaxWidth(Double.MAX_VALUE);
+        variableBox.setDisable(variables.isEmpty());
+        Button insert = new Button("插入");
+        insert.setDisable(variables.isEmpty());
+        HBox insertion = new HBox(6, variableBox, insert);
+        insertion.setMinWidth(0);
+        HBox.setHgrow(variableBox, Priority.ALWAYS);
+        VBox variableEditor = new VBox(6, expression, wrap("插入变量", insertion));
+        variableEditor.setMinWidth(0);
+        variableEditor.setMaxWidth(Double.MAX_VALUE);
+        VBox valueEditor = new VBox();
+        valueEditor.setMinWidth(0);
+
+        Runnable apply = () -> {
+            if (element != target) {
+                return;
+            }
+            String content = expression.getText();
+            String mode = "变量".equals(modeBox.getValue()) ? "variable" : "fixed";
+            if (!content.equals(target.path("content").asText(""))
+                    || !mode.equals(target.path("contentMode").asText())) {
+                target.put("content", content);
+                target.put("contentMode", mode);
+                onChange.run();
+            }
+        };
+        Runnable showMode = () -> {
+            boolean variable = "变量".equals(modeBox.getValue());
+            expression.setPromptText(variable
+                    ? "(01){{diNo}}(21){{serialNo}}" : "(01)123456(02)123456");
+            valueEditor.getChildren().setAll(wrap(variable ? "变量表达式" : "固定值",
+                    variable ? variableEditor : expression));
+        };
+        showMode.run();
+        expression.setOnAction(event -> apply.run());
+        expression.focusedProperty().addListener((obs, oldValue, focused) -> {
+            if (!focused) {
+                apply.run();
+            }
+        });
+        modeBox.valueProperty().addListener((obs, oldValue, mode) -> {
+            if (mode == null || element != target) {
+                return;
+            }
+            target.put("contentMode", "变量".equals(mode) ? "variable" : "fixed");
+            showMode.run();
+            onChange.run();
+        });
+        insert.setOnAction(event -> {
+            if (element != target) {
+                return;
+            }
+            TemplateVariable variable = variableBox.getValue();
+            if (variable == null) {
+                onError.accept("请先选择要插入的变量");
+                return;
+            }
+            expression.insertText(expression.getCaretPosition(), "{{" + variable.key() + "}}");
+            apply.run();
+        });
+        elementSettings.getChildren().addAll(wrap("内容来源", modeBox), valueEditor);
+    }
+
+    private void addContentField() {
+        if (laserMode) {
+            addText("内容", "content");
+            return;
+        }
+        List<TemplateVariable> variables = variableSupplier.get();
+        ComboBox<String> modeBox = new ComboBox<>();
+        modeBox.getItems().addAll("固定值", "变量");
+        modeBox.setValue("variable".equals(element.path("contentMode").asText()) ? "变量" : "固定值");
+
+        TextField fixedInput = new TextField(element.path("content").asText(""));
+        ComboBox<TemplateVariable> variableBox = new ComboBox<>();
+        variableBox.getItems().setAll(variables);
+        variableBox.setCellFactory(view -> variableCell());
+        variableBox.setButtonCell(variableCell());
+        variableBox.setPromptText(variables.isEmpty() ? "请先在变量管理中新增变量" : "请选择变量");
+        variableBox.setDisable(variables.isEmpty());
+        variableBox.setMaxWidth(Double.MAX_VALUE);
+        String variableKey = element.path("variableKey").asText("");
+        variables.stream().filter(variable -> variable.key().equals(variableKey)).findFirst()
+                .ifPresent(variableBox::setValue);
+
+        VBox valueEditor = new VBox();
+        boolean variableMode = "变量".equals(modeBox.getValue());
+        valueEditor.getChildren().add(wrap(variableMode ? "变量" : "固定值",
+                variableMode ? variableBox : fixedInput));
+        Runnable applyFixed = () -> {
+            if (element == null) {
+                return;
+            }
+            String value = fixedInput.getText();
+            if (!value.equals(element.path("content").asText(""))) {
+                element.put("content", value);
+                element.put("contentMode", "fixed");
+                onChange.run();
+            }
+        };
+        fixedInput.setOnAction(event -> applyFixed.run());
+        fixedInput.focusedProperty().addListener((obs, oldValue, focused) -> {
+            if (!focused) {
+                applyFixed.run();
+            }
+        });
+        modeBox.valueProperty().addListener((obs, oldValue, mode) -> {
+            if (mode == null || element == null) {
+                return;
+            }
+            boolean variable = "变量".equals(mode);
+            element.put("contentMode", variable ? "variable" : "fixed");
+            valueEditor.getChildren().setAll(wrap(variable ? "变量" : "固定值",
+                    variable ? variableBox : fixedInput));
+            if (variable && variables.isEmpty()) {
+                onError.accept("请先在左侧“变量管理”中新增变量");
+            }
+            onChange.run();
+        });
+        variableBox.valueProperty().addListener((obs, oldValue, variable) -> {
+            if (variable == null || element == null) {
+                return;
+            }
+            element.put("contentMode", "variable");
+            element.put("variableKey", variable.key());
+            onChange.run();
+        });
+        elementSettings.getChildren().addAll(wrap("内容来源", modeBox), valueEditor);
+    }
+
+    private static ListCell<TemplateVariable> variableCell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(TemplateVariable variable, boolean empty) {
+                super.updateItem(variable, empty);
+                setText(empty || variable == null ? null : variable.key()
+                        + (variable.remark().isBlank() ? "" : " · " + variable.remark()));
+            }
+        };
+    }
+
     private void addText(String label, String field) {
         TextField input = new TextField(element.path(field).asText(""));
         Runnable apply = () -> {
+            if (element == null) {
+                return;
+            }
             String value = input.getText();
             if (!value.equals(element.path(field).asText(""))) {
                 element.put(field, value);
@@ -230,6 +411,9 @@ public class ElementPropertiesPanel {
     private void addNumber(String label, String field, double min, double max, boolean integer) {
         TextField input = new TextField(element.path(field).asText());
         Runnable apply = () -> {
+            if (element == null) {
+                return;
+            }
             try {
                 double value = Double.parseDouble(input.getText().trim());
                 if (value < min || value > max || (integer && value != Math.rint(value))) {
@@ -255,7 +439,15 @@ public class ElementPropertiesPanel {
                 apply.run();
             }
         });
-        elementSettings.getChildren().add(wrap(label, input));
+        elementSettings.getChildren().add(wrap(label,
+                NumericStepper.attach(input, min, max, integer ? 1 : stepFor(field), integer, apply)));
+    }
+
+    private static double stepFor(String field) {
+        return switch (field) {
+            case "moduleMm", "thicknessMm" -> 0.1;
+            default -> 0.5;
+        };
     }
 
     private void addBoolean(String label, String field) {
@@ -266,6 +458,9 @@ public class ElementPropertiesPanel {
         CheckBox check = new CheckBox();
         check.setSelected(element.path(field).asBoolean(false));
         check.selectedProperty().addListener((obs, oldValue, value) -> {
+            if (element == null) {
+                return;
+            }
             element.put(field, value);
             if ("gs1".equals(field) && value) {
                 element.put("rotation", 0);
@@ -294,7 +489,7 @@ public class ElementPropertiesPanel {
                     }
                 });
         combo.valueProperty().addListener((obs, oldValue, choice) -> {
-            if (choice == null) {
+            if (choice == null || (rootField ? design == null : element == null)) {
                 return;
             }
             if (rootField) {
@@ -311,12 +506,17 @@ public class ElementPropertiesPanel {
             }
             onChange.run();
         });
-        elementSettings.getChildren().add(wrap(label, combo));
+        elementSettings.getChildren().add(wrap(label,
+                "angle".equals(field) || "rotation".equals(field) || "pen".equals(field)
+                        ? NumericStepper.attachChoices(combo) : combo));
     }
 
     private void addRootNumber(String label, String field, double min, double max) {
         TextField input = new TextField(design.path(field).asText());
         Runnable apply = () -> {
+            if (design == null) {
+                return;
+            }
             try {
                 double value = Double.parseDouble(input.getText().trim());
                 if (value < min || value > max) {
@@ -338,7 +538,8 @@ public class ElementPropertiesPanel {
                 apply.run();
             }
         });
-        labelSettings.getChildren().add(wrap(label, input));
+        labelSettings.getChildren().add(wrap(label,
+                NumericStepper.attach(input, min, max, 0.5, false, apply)));
     }
 
     private void addRootChoice(String label, String field, Map<String, Object> options) {
@@ -348,23 +549,29 @@ public class ElementPropertiesPanel {
         combo.getItems().stream().filter(choice -> choice.value.equals(current))
                 .findFirst().ifPresent(combo::setValue);
         combo.valueProperty().addListener((obs, oldValue, choice) -> {
-            if (choice != null) {
+            if (choice != null && design != null) {
                 design.put(field, (Integer) choice.value);
                 updateDots();
                 onChange.run();
             }
         });
-        labelSettings.getChildren().add(wrap(label, combo));
+        labelSettings.getChildren().add(wrap(label,
+                "pen".equals(field) ? NumericStepper.attachChoices(combo) : combo));
     }
 
     private void updateDots() {
         if (dotsHint == null || design == null) {
             return;
         }
+        if (laserMode) {
+            dotsHint.setText("工作区域：" + design.path("widthMm").asDouble() + " × "
+                    + design.path("heightMm").asDouble() + " mm · 实际加工范围以设备配置为准");
+            return;
+        }
         int dpi = design.path("dpi").asInt(600);
         long width = Math.round(design.path("widthMm").asDouble() * dpi / 25.4);
         long height = Math.round(design.path("heightMm").asDouble() * dpi / 25.4);
-        dotsHint.setText("打印点阵：" + width + " × " + height + " dots · 预览固定 4 px/mm");
+        dotsHint.setText("打印点阵：" + width + " × " + height + " dots · 预览 8 px/mm 采样，画布 4 px/mm");
     }
 
     private void chooseImage() {
@@ -397,7 +604,7 @@ public class ElementPropertiesPanel {
         }
     }
 
-    private static <T extends javafx.scene.control.Control> HBox wrap(String label, T input) {
+    private static <T extends javafx.scene.Node> HBox wrap(String label, T input) {
         Label caption = new Label(label);
         caption.getStyleClass().add("field-label");
         caption.setMinWidth(105);
@@ -405,7 +612,9 @@ public class ElementPropertiesPanel {
         HBox row = new HBox(8, caption, input);
         row.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(input, Priority.ALWAYS);
-        input.setMaxWidth(Double.MAX_VALUE);
+        if (input instanceof javafx.scene.layout.Region region) {
+            region.setMaxWidth(Double.MAX_VALUE);
+        }
         return row;
     }
 

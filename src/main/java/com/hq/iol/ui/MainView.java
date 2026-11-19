@@ -1,6 +1,8 @@
 package com.hq.iol.ui;
 
+import com.hq.iol.service.PrinterStatusService;
 import javafx.animation.FadeTransition;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
@@ -18,45 +20,52 @@ import java.util.List;
 @Component
 public class MainView {
 
-    private final PrintPanel printPanel;
     private final ScalePanel scalePanel;
     private final ConfigPanel configPanel;
     private final DesignerPanel designerPanel;
+    private final VariablePanel variablePanel;
+    private final LaserPanel laserPanel;
+    private final LaserDesignPanel laserDesignPanel;
     private final UiLogService uiLog;
+    private final PrinterStatusService printerStatusService;
 
-    public MainView(PrintPanel printPanel, ScalePanel scalePanel,
-                    ConfigPanel configPanel, DesignerPanel designerPanel, UiLogService uiLog) {
-        this.printPanel = printPanel;
+    public MainView(ScalePanel scalePanel, ConfigPanel configPanel, DesignerPanel designerPanel,
+                    VariablePanel variablePanel, LaserPanel laserPanel, LaserDesignPanel laserDesignPanel,
+                    UiLogService uiLog, PrinterStatusService printerStatusService) {
         this.scalePanel = scalePanel;
         this.configPanel = configPanel;
         this.designerPanel = designerPanel;
+        this.variablePanel = variablePanel;
+        this.laserPanel = laserPanel;
+        this.laserDesignPanel = laserDesignPanel;
         this.uiLog = uiLog;
+        this.printerStatusService = printerStatusService;
     }
 
     public Parent build() {
         Image appIcon = new Image(getClass().getResourceAsStream("/icon.png"));
         SidebarNav nav = new SidebarNav(appIcon, List.of(
-                new SidebarNav.NavItem("打", "打印测试", "chip-blue"),
                 new SidebarNav.NavItem("秤", "称重测试", "chip-green"),
+                new SidebarNav.NavItem("签", "打印模板", "chip-blue"),
+                new SidebarNav.NavItem("变", "变量管理", "chip-blue"),
+                new SidebarNav.NavItem("标", "激光模板", "chip-blue"),
+                new SidebarNav.NavItem("光", "激光打标", "chip-blue"),
                 new SidebarNav.NavItem("设", "系统配置", "chip-gray"),
-                new SidebarNav.NavItem("签", "标签设计", "chip-blue"),
                 new SidebarNav.NavItem("志", "操作日志", "chip-gray")));
+        printerStatusService.addListener(statuses -> Platform.runLater(() ->
+                nav.setPrinterStatuses(printerStatusService.profiles(), statuses)));
+        printerStatusService.start();
 
         List<Parent> pages = List.of(
-                printPanel.build(), scalePanel.build(), configPanel.build(), designerPanel.build(),
-                new LogDrawer(uiLog).build());
-        List<String[]> headings = List.of(
-                new String[]{"打印测试", "选择模板、录入变量并验证标签输出"},
-                new String[]{"称重测试", "读取 EK-i 稳定重量并执行去皮/清零"},
-                new String[]{"系统配置", "管理打印机与电子秤连接参数"},
-                new String[]{"标签设计", "编辑模板布局、变量与打印效果"},
-                new String[]{"操作日志", "查看最近 500 条运行记录与错误信息"});
+                scalePanel.build(), designerPanel.build(), variablePanel.build(), laserDesignPanel.build(),
+                laserPanel.build(), configPanel.build(), new LogDrawer(uiLog).build());
+        List<String> headings = List.of(
+                "称重测试", "打印模板", "变量管理", "激光模板",
+                "激光打标", "系统配置", "操作日志");
 
-        Label title = new Label(headings.get(0)[0]);
+        Label title = new Label(headings.get(0));
         title.getStyleClass().add("page-title");
-        Label subtitle = new Label(headings.get(0)[1]);
-        subtitle.getStyleClass().add("page-subtitle");
-        VBox heading = new VBox(3, title, subtitle);
+        VBox heading = new VBox(title);
         heading.getStyleClass().add("topbar");
 
         StackPane content = new StackPane(pages.get(0));
@@ -65,8 +74,7 @@ public class MainView {
 
         nav.selectedIndexProperty().addListener((obs, oldIndex, newIndex) -> {
             int index = newIndex.intValue();
-            title.setText(headings.get(index)[0]);
-            subtitle.setText(headings.get(index)[1]);
+            title.setText(headings.get(index));
             Parent page = pages.get(index);
             content.getChildren().setAll(page);
             FadeTransition fade = new FadeTransition(Duration.millis(180), page);

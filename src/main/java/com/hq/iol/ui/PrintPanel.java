@@ -1,7 +1,10 @@
 package com.hq.iol.ui;
 
+import com.hq.iol.device.printer.PrinterProfile;
 import com.hq.iol.label.LabelTemplate;
 import com.hq.iol.service.PrintService;
+import com.hq.iol.service.PrinterRegistry;
+import com.hq.iol.service.VariableService;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -30,7 +33,10 @@ public class PrintPanel {
 
     private final PrintService printService;
     private final UiLogService uiLog;
+    private final PrinterRegistry printers;
+    private final VariableService variableService;
     private final ComboBox<LabelTemplate> templateBox = new ComboBox<>();
+    private final ComboBox<PrinterProfile> printerBox = new ComboBox<>();
     private final Map<String, TextField> varFields = new LinkedHashMap<>();
     private final GridPane varGrid = new GridPane();
     private final Label emptyVars = new Label();
@@ -40,9 +46,12 @@ public class PrintPanel {
     private final Button reloadButton = new Button("刷新模板");
     private final Button statusButton = new Button("查询打印机状态");
 
-    public PrintPanel(PrintService printService, UiLogService uiLog) {
+    public PrintPanel(PrintService printService, UiLogService uiLog, PrinterRegistry printers,
+                      VariableService variableService) {
         this.printService = printService;
         this.uiLog = uiLog;
+        this.printers = printers;
+        this.variableService = variableService;
     }
 
     public Parent build() {
@@ -62,6 +71,19 @@ public class PrintPanel {
         printButton.setOnAction(e -> print());
         printButton.disableProperty().bind(busy.or(templateBox.valueProperty().isNull()));
         printButton.setMaxWidth(Double.MAX_VALUE);
+
+        printerBox.setCellFactory(lv -> printerCell());
+        printerBox.setButtonCell(printerCell());
+        printerBox.setMaxWidth(Double.MAX_VALUE);
+        printerBox.disableProperty().bind(busy);
+        refreshPrinters();
+        printerBox.valueProperty().addListener((obs, oldValue, profile) -> {
+            if (oldValue != null && profile != null && !profile.id().equals(printers.active().id())) {
+                printers.setActive(profile.id());
+                banner.success("当前打印机：" + profile.name());
+                uiLog.info("当前打印机: " + profile.name());
+            }
+        });
 
         VBox templateCard = card("标签模板", "选择需要验证的设计稿");
         templateCard.getChildren().addAll(templateBox, reloadButton);
@@ -88,14 +110,37 @@ public class PrintPanel {
         actions.setPrefWidth(280);
         actions.setMinWidth(240);
         actions.getChildren().addAll(
-                banner.node(), statusButton, printButton,
+                hint("当前打印机"), printerBox, banner.node(), statusButton, printButton,
                 hint("打印前会自动查询打印机状态；缺纸、卡纸或暂停时不会下发指令。"),
                 hint("“已下发”仅表示指令已写入打印机，不代表实物已完成打印。"));
 
         HBox root = new HBox(14, left, actions);
         root.getStyleClass().add("page-content");
+        root.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) {
+                refreshPrinters();
+            }
+        });
         loadTemplates();
         return root;
+    }
+
+    private void refreshPrinters() {
+        printerBox.getItems().setAll(printers.list());
+        PrinterProfile active = printers.active();
+        printerBox.getItems().stream().filter(profile -> profile.id().equals(active.id()))
+                .findFirst().ifPresent(printerBox::setValue);
+    }
+
+    private static ListCell<PrinterProfile> printerCell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(PrinterProfile item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null
+                        : item.name() + " · " + item.host() + ":" + item.port());
+            }
+        };
     }
 
     private void loadTemplates() {
@@ -141,7 +186,7 @@ public class PrintPanel {
             Label label = new Label(name);
             label.getStyleClass().add("field-label");
             label.setMinWidth(105);
-            TextField field = new TextField();
+            TextField field = new TextField(variableService.get(name).orElse(""));
             field.setPromptText("请输入 " + name);
             field.disableProperty().bind(busy);
             varFields.put(name, field);
@@ -173,7 +218,7 @@ public class PrintPanel {
         String templateName = template.name();
         Map<String, String> values = new LinkedHashMap<>();
         varFields.forEach((key, field) -> values.put(key, field.getText()));
-        Map<String, String> snapshot = Map.copyOf(values);
+        Map<String, String> snapshot = variableService.withOverrides(values);
         startTask("正在打印…", () -> {
             printService.print(templateName, snapshot);
             banner.success("打印任务已下发");

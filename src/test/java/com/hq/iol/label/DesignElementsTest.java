@@ -32,4 +32,16 @@ class DesignElementsTest {
         assertThat(DesignElements.bounds(line).width()).isEqualTo(0.5);
         assertThat(DesignElements.bounds(line).height()).isEqualTo(30);
     }
+
+    @Test
+    void 固定值模式不解析双花括号内容() {
+        for (String type : new String[]{"text", "datamatrix", "barcode", "qrcode"}) {
+            var element = DesignElements.create(type, 1);
+            element.put("content", "{{diNo}}");
+            assertThat(element.path("contentMode").asText()).isEqualTo("fixed");
+            assertThat(VariableSupport.resolveContent(element, java.util.Map.of("diNo", "06912345678901")))
+                    .isEqualTo("{{diNo}}");
+            assertThat(VariableSupport.extract("{\"elements\":[" + element + "]}")).isEmpty();
+        }
+    }
 }

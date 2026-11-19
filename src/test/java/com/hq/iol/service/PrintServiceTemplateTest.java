@@ -44,7 +44,7 @@ class PrintServiceTemplateTest {
         TemplateRepository repo = new TemplateRepository(jdbc, init);
         LabelSeed.seedAll(repo);
         vertx = Vertx.vertx();
-        return new Fixture(new PrintService(config, repo, vertx), repo);
+        return new Fixture(new PrintService(config, repo, vertx, new PrinterRegistry(config)), repo);
     }
 
     private record Fixture(PrintService service, TemplateRepository repo) {
@@ -69,7 +69,7 @@ class PrintServiceTemplateTest {
     void buildTspl从仓储取模板并渲染() {
         PrintService ps = newService();
         String tspl = ps.buildTspl(LabelSeed.LENS_NAME, Map.of(
-                "diNo", "06975897610400", "sterileDate", "2026-05-28",
+                "diNo", "06975897610400", "sterileDate", "2026-05-28", "expiryDate", "2031-05-28",
                 "serialNo", "2605283500", "type", "AT2000", "power", "+20.0D",
                 "totalDia", "12.0", "bodyDia", "6.0"));
         assertThat(tspl).contains("DMATRIX");
@@ -84,7 +84,18 @@ class PrintServiceTemplateTest {
                 + "\"elements\":[{\"id\":\"t\",\"type\":\"text\",\"x\":3,\"y\":2,"
                 + "\"fontSizeMm\":3,\"content\":\"X\"}]}", false);
         String tspl = fixture.service().buildTspl("DPI300", Map.of());
-        assertThat(tspl).contains("GRAPH 0,0,89,472,");
+        assertThat(tspl).contains("BITMAP 0,0,89,472,0,");
+    }
+
+    @Test
+    void 当前画布可直接生成Tspl() {
+        Fixture fixture = newFixture();
+        String design = "{\"version\":1,\"dpi\":300,\"widthMm\":60,\"heightMm\":40,"
+                + "\"elements\":[{\"id\":\"t\",\"type\":\"text\",\"x\":3,\"y\":2,"
+                + "\"fontSizeMm\":3,\"content\":\"X\"}]}";
+        String tspl = fixture.service().previewTspl(design, Map.of());
+        assertThat(tspl).contains("BITMAP 0,0,89,472,0,");
+        assertThat(tspl).endsWith("PRINT 1,1\r\n");
     }
 
     @Test

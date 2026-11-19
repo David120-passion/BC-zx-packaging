@@ -53,6 +53,8 @@ public final class DesignElements {
         switch (type) {
             case "text" -> {
                 size(node, 30, 6);
+                node.put("contentMode", "fixed");
+                node.put("variableKey", "");
                 node.put("content", "文本");
                 textStyle(node, "默认", 3);
                 node.put("textAlign", "left");
@@ -62,11 +64,14 @@ public final class DesignElements {
                 node.put("sizeMm", 20);
                 node.put("moduleMm", 0.75);
                 node.put("gs1", false);
-                node.put("gs1Mode", "lens");
+                node.put("contentMode", "fixed");
+                node.put("variableKey", "");
                 node.put("content", "DM123456");
             }
             case "barcode" -> {
                 size(node, 40, 12);
+                node.put("contentMode", "fixed");
+                node.put("variableKey", "");
                 node.put("content", "123456789");
                 node.put("barcodeType", "CODE128");
                 node.put("moduleMm", 0.3);
@@ -74,6 +79,8 @@ public final class DesignElements {
             }
             case "qrcode" -> {
                 node.put("sizeMm", 20);
+                node.put("contentMode", "fixed");
+                node.put("variableKey", "");
                 node.put("content", "https://example.com");
                 node.put("errorLevel", "M");
             }

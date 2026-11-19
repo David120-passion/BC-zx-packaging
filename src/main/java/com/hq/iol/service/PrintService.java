@@ -2,6 +2,7 @@ package com.hq.iol.service;
 
 import com.hq.iol.config.ConfigKeys;
 import com.hq.iol.config.ConfigService;
+import com.hq.iol.device.printer.PrinterProfile;
 import com.hq.iol.device.printer.PrinterStatus;
 import com.hq.iol.device.printer.TscPrinterDriver;
 import com.hq.iol.label.LabelRenderer;
@@ -23,18 +24,21 @@ public class PrintService {
     private final ConfigService config;
     private final TemplateRepository templates;
     private final Vertx vertx;
+    private final PrinterRegistry printers;
 
-    public PrintService(ConfigService config, TemplateRepository templates, Vertx vertx) {
+    public PrintService(ConfigService config, TemplateRepository templates, Vertx vertx,
+                        PrinterRegistry printers) {
         this.config = config;
         this.templates = templates;
         this.vertx = vertx;
+        this.printers = printers;
     }
 
     public List<LabelTemplate> listTemplates() {
         return templates.findAll();
     }
 
-    /** 模板变量 = design 中的 {{var}} ∪ GS1 模式必需变量。 */
+    /** 模板变量 = 显式变量绑定 ∪ GS1 模式必需变量。 */
     public Set<String> templateVariables(String templateName) {
         LabelTemplate t = templates.findByName(templateName);
         return VariableSupport.extractRequired(t.designJson());
@@ -45,6 +49,18 @@ public class PrintService {
         LabelTemplate t = templates.findByName(templateName);
         int dpi = LabelRenderer.templateDpi(t.designJson(), config.getInt(ConfigKeys.PRINTER_DPI));
         return LabelRenderer.renderTspl(t.designJson(), vars, dpi);
+    }
+
+    /** 按当前画布设计生成实际发送的 TSPL，优先使用模板自身 DPI。 */
+    public String previewTspl(String designJson, Map<String, String> vars) {
+        int dpi = LabelRenderer.templateDpi(designJson, config.getInt(ConfigKeys.PRINTER_DPI));
+        return LabelRenderer.renderTspl(designJson, vars, dpi);
+    }
+
+    /** 直接打印当前画布设计，发送前仍由驱动检查真实打印机状态。 */
+    public synchronized void printDesign(String designJson, Map<String, String> vars)
+            throws IOException, TscPrinterDriver.PrinterNotReadyException {
+        newDriver().print(previewTspl(designJson, vars));
     }
 
     /** 查询打印机状态描述。 */
@@ -59,7 +75,7 @@ public class PrintService {
     }
 
     private TscPrinterDriver newDriver() {
-        return new TscPrinterDriver(vertx, config.get(ConfigKeys.PRINTER_HOST),
-                config.getInt(ConfigKeys.PRINTER_PORT), 2000);
+        PrinterProfile active = printers.active();
+        return new TscPrinterDriver(vertx, active.host(), active.port(), 2000);
     }
 }

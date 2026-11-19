@@ -10,6 +10,8 @@ import com.hq.iol.label.LabelTemplate;
 import com.hq.iol.label.TemplateRepository;
 import com.hq.iol.label.VariableSupport;
 import com.hq.iol.service.PrintService;
+import com.hq.iol.service.LaserService;
+import com.hq.iol.service.VariableService;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -21,14 +23,12 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.image.Image;
 import javafx.scene.layout.BorderPane;
@@ -49,24 +49,32 @@ import java.util.Set;
 public class DesignerPanel {
 
     private static final double PX_PER_MM = 4.0;
+    private static final int TEMPLATE_ROWS = 10;
+    private static final double TEMPLATE_ROW_HEIGHT = 32;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final TemplateRepository repo;
     private final PrintService printService;
+    private final LaserService laserService;
+    private final VariableService variableService;
+    private final OutputMode outputMode;
     private final UiLogService uiLog;
     private final ElementPropertiesPanel properties;
+
+    public enum OutputMode {LABEL, LASER}
 
     private final ListView<LabelTemplate> templateList = new ListView<>();
     private final Canvas canvas = new Canvas();
     private final StackPane paper = new StackPane(canvas);
+    private final ScrollPane canvasScroll = new ScrollPane();
     private final Label emptyCanvas = new Label("暂无模板，请新建或选择模板");
-    private final Label varsLabel = new Label();
     private final ResultBanner banner = new ResultBanner();
     private final BooleanProperty busy = new SimpleBooleanProperty(false);
     private final Button newButton = new Button("新建");
     private final Button deleteButton = new Button("删除");
     private final Button saveButton = new Button("保存模板");
     private final Button printButton = new Button("测试打印");
+    private final Button previewButton = new Button("TSPL 预览");
 
     private ObjectNode design;
     private String currentName;
@@ -77,12 +85,35 @@ public class DesignerPanel {
     private double dragOffsetY;
     private Parent propertiesView;
 
-    public DesignerPanel(TemplateRepository repo, PrintService printService, UiLogService uiLog) {
+    @org.springframework.beans.factory.annotation.Autowired
+    public DesignerPanel(TemplateRepository repo, PrintService printService, UiLogService uiLog,
+                         VariableService variableService) {
+        this(repo, printService, null, variableService, uiLog, OutputMode.LABEL);
+    }
+
+    public DesignerPanel(TemplateRepository repo, LaserService laserService, UiLogService uiLog) {
+        this(repo, null, laserService, null, uiLog, OutputMode.LASER);
+    }
+
+    public DesignerPanel(TemplateRepository repo, LaserService laserService, UiLogService uiLog,
+                         VariableService variableService) {
+        this(repo, null, laserService, variableService, uiLog, OutputMode.LASER);
+    }
+
+    private DesignerPanel(TemplateRepository repo, PrintService printService, LaserService laserService,
+                          VariableService variableService, UiLogService uiLog, OutputMode outputMode) {
         this.repo = repo;
         this.printService = printService;
+        this.laserService = laserService;
+        this.variableService = variableService;
+        this.outputMode = outputMode;
         this.uiLog = uiLog;
         this.properties = new ElementPropertiesPanel(
-                this::onDesignChanged, this::deleteSelectedElement, banner::fail);
+                this::onDesignChanged, this::deleteSelectedElement, banner::fail,
+                () -> variableService == null ? List.of() : variableService.list());
+        this.properties.setLaserMode(outputMode == OutputMode.LASER);
+        previewButton.setText(outputMode == OutputMode.LASER ? "对象预览" : "TSPL 预览");
+        printButton.setText(outputMode == OutputMode.LASER ? "测试打标（不出光）" : "测试打印");
     }
 
     public Parent build() {
@@ -100,11 +131,16 @@ public class DesignerPanel {
         left.getStyleClass().add("card");
         left.setPrefWidth(220);
         left.setMinWidth(195);
-        VBox.setVgrow(templateList, Priority.ALWAYS);
-        templateList.setMinHeight(130);
+        templateList.setFixedCellSize(TEMPLATE_ROW_HEIGHT);
+        templateList.setPrefHeight(TEMPLATE_ROWS * TEMPLATE_ROW_HEIGHT + 4);
+        templateList.setMinHeight(templateList.getPrefHeight());
+        templateList.setMaxHeight(templateList.getPrefHeight());
+        VBox.setVgrow(templateList, Priority.NEVER);
+        palette.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(palette, Priority.ALWAYS);
 
         saveButton.getStyleClass().add("btn-primary");
-        HBox toolbar = new HBox(8, saveButton, printButton);
+        HBox toolbar = new HBox(8, saveButton, previewButton, printButton);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         VBox toolbarCard = new VBox(6, toolbar, banner.node());
         toolbarCard.getStyleClass().add("toolbar-card");
@@ -112,23 +148,19 @@ public class DesignerPanel {
         emptyCanvas.getStyleClass().add("empty-state");
         StackPane canvasHost = new StackPane(paper, emptyCanvas);
         StackPane.setMargin(paper, new Insets(24));
-        ScrollPane canvasScroll = new ScrollPane(canvasHost);
+        canvasScroll.setContent(canvasHost);
         canvasScroll.getStyleClass().add("designer-canvas");
         canvasScroll.setPannable(true);
         canvasScroll.setFitToWidth(true);
         canvasScroll.setFitToHeight(true);
         VBox.setVgrow(canvasScroll, Priority.ALWAYS);
 
-        Label varsTitle = new Label("模板变量");
-        varsTitle.getStyleClass().add("card-title");
-        varsLabel.getStyleClass().add("hint");
-        varsLabel.setWrapText(true);
-        Label previewHint = new Label("GS1 使用示例数据预览；测试打印读取已保存模板。");
-        previewHint.getStyleClass().add("hint");
-        previewHint.setWrapText(true);
-        VBox varsCard = new VBox(6, varsTitle, varsLabel, previewHint);
-        varsCard.getStyleClass().add("toolbar-card");
-        VBox center = new VBox(10, toolbarCard, canvasScroll, varsCard);
+        VBox bottomBlankCard = new VBox();
+        bottomBlankCard.getStyleClass().add("toolbar-card");
+        bottomBlankCard.setMinHeight(80);
+        bottomBlankCard.setPrefHeight(80);
+        bottomBlankCard.setMaxHeight(80);
+        VBox center = new VBox(10, toolbarCard, canvasScroll, bottomBlankCard);
         center.setMinWidth(0);
 
         propertiesView = properties.build();
@@ -147,6 +179,12 @@ public class DesignerPanel {
 
         reloadList();
         busy.addListener((obs, oldValue, newValue) -> updateActionState());
+        root.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) {
+                properties.setElement((ObjectNode) selected);
+                onDesignChanged();
+            }
+        });
         return root;
     }
 
@@ -154,16 +192,23 @@ public class DesignerPanel {
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(8);
+        int rowCount = (DesignElements.types().size() + 1) / 2;
+        for (int row = 0; row < rowCount; row++) {
+            javafx.scene.layout.RowConstraints constraints = new javafx.scene.layout.RowConstraints();
+            constraints.setPercentHeight(100.0 / rowCount);
+            grid.getRowConstraints().add(constraints);
+        }
         int index = 0;
         for (String type : DesignElements.types()) {
             Button button = new Button(DesignElements.displayName(type));
             button.getStyleClass().add("component-item");
-            button.setMaxWidth(Double.MAX_VALUE);
+            button.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
             button.setOnAction(e -> addElement(type));
             int row = index / 2;
             int col = index % 2;
             grid.add(button, col, row);
             GridPane.setHgrow(button, Priority.ALWAYS);
+            GridPane.setVgrow(button, Priority.ALWAYS);
             index++;
         }
         return grid;
@@ -201,8 +246,10 @@ public class DesignerPanel {
         newButton.setOnAction(e -> newTemplate());
         deleteButton.setOnAction(e -> deleteTemplate());
         saveButton.setOnAction(e -> save());
-        printButton.setOnAction(e -> showPrintDialog());
-        printButton.setTooltip(new javafx.scene.control.Tooltip("测试打印使用已保存模板，请先保存设计修改"));
+        previewButton.setOnAction(e -> showOutputPreview());
+        printButton.setOnAction(e -> printCurrentDesign());
+        printButton.setTooltip(new javafx.scene.control.Tooltip(outputMode == OutputMode.LASER
+                ? "使用示例变量创建对象，并以不出光测试模式执行" : "使用示例变量直接生成并发送当前画布的 TSPL"));
     }
 
     private void configureCanvas() {
@@ -243,6 +290,12 @@ public class DesignerPanel {
             properties.setDesign(design);
             properties.setElement(null);
             onDesignChanged();
+            canvasScroll.setHvalue(0);
+            canvasScroll.setVvalue(0);
+            Platform.runLater(() -> {
+                canvasScroll.setHvalue(0);
+                canvasScroll.setVvalue(0);
+            });
         } catch (Exception e) {
             banner.fail("模板加载失败：" + e.getMessage());
             uiLog.error("模板加载失败: " + e.getMessage());
@@ -263,7 +316,6 @@ public class DesignerPanel {
         emptyCanvas.setManaged(true);
         properties.setDesign(null);
         properties.setElement(null);
-        varsLabel.setText("");
         updateActionState();
     }
 
@@ -273,6 +325,7 @@ public class DesignerPanel {
         deleteButton.setDisable(busy.get() || noTemplate || currentBuiltin);
         saveButton.setDisable(busy.get() || noTemplate);
         printButton.setDisable(busy.get() || noTemplate);
+        previewButton.setDisable(busy.get() || noTemplate);
         templateList.setDisable(busy.get());
         canvas.setDisable(busy.get());
         if (propertiesView != null) {
@@ -338,7 +391,6 @@ public class DesignerPanel {
         }
         updateCanvasSize();
         renderPreview();
-        varsLabel.setText(String.join(", ", currentVariables()));
     }
 
     private void updateCanvasSize() {
@@ -368,7 +420,8 @@ public class DesignerPanel {
         try {
             Image img = SwingFXUtils.toFXImage(
                     LabelRenderer.renderPreview(design.toString(), previewVariables()), null);
-            g.drawImage(img, 0, 0);
+            g.setImageSmoothing(true);
+            g.drawImage(img, 0, 0, canvas.getWidth(), canvas.getHeight());
         } catch (Exception e) {
             banner.fail("预览渲染失败：" + e.getMessage());
             uiLog.error("预览渲染失败: " + e.getMessage());
@@ -384,7 +437,7 @@ public class DesignerPanel {
         }
     }
 
-    private static Map<String, String> previewVariables() {
+    private Map<String, String> previewVariables() {
         Map<String, String> vars = new LinkedHashMap<>();
         vars.put("diNo", "06912345678901");
         vars.put("sterileDate", "2026-01-01");
@@ -392,6 +445,18 @@ public class DesignerPanel {
         vars.put("productionDate", "2026-01-01");
         vars.put("expiryDate", "2031-01-01");
         vars.put("lotNo", "LOT001");
+        for (String variable : currentVariables()) {
+            vars.putIfAbsent(variable, switch (variable) {
+                case "type" -> "IOL-DEMO";
+                case "power" -> "+20.0D";
+                case "totalDia", "bodyDia", "optDia", "cutDia" -> "12.0";
+                case "registerNo" -> "REG-DEMO";
+                default -> "SAMPLE";
+            });
+        }
+        if (variableService != null) {
+            vars.putAll(variableService.snapshot());
+        }
         return vars;
     }
 
@@ -464,8 +529,10 @@ public class DesignerPanel {
                 return;
             }
             startTask("正在创建模板…", () -> {
-                repo.insert(name, "{\"version\":1,\"dpi\":600,\"widthMm\":60,\"heightMm\":40,"
-                        + "\"elements\":[]}", false);
+                String initialDesign = outputMode == OutputMode.LASER
+                        ? "{\"version\":1,\"widthMm\":100,\"heightMm\":100,\"pen\":0,\"elements\":[]}"
+                        : "{\"version\":1,\"dpi\":600,\"widthMm\":60,\"heightMm\":40,\"elements\":[]}";
+                repo.insert(name, initialDesign, false);
                 Platform.runLater(() -> {
                     currentName = name;
                     reloadList();
@@ -501,56 +568,101 @@ public class DesignerPanel {
         });
     }
 
-    private void showPrintDialog() {
-        String nameSnapshot = currentName;
-        if (nameSnapshot == null) {
+    private void printCurrentDesign() {
+        if (design == null) {
             banner.fail("请先打开模板");
             return;
         }
-        Set<String> variables = printService.templateVariables(nameSnapshot);
-        Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("测试打印");
-        dialog.setHeaderText("录入「" + nameSnapshot + "」的打印变量");
-        ButtonType printType = new ButtonType("打印", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, printType);
+        String designSnapshot = design.toString();
+        String nameSnapshot = currentName;
+        Map<String, String> variables = previewVariables();
+        if (outputMode == OutputMode.LASER) {
+            startTask("正在创建测试打标对象…", () -> {
+                laserService.markDesign(designSnapshot, variables, true);
+                banner.success("测试打标完成（未出光）");
+                uiLog.info("测试打标完成: " + nameSnapshot);
+            });
+            return;
+        }
+        startTask("正在生成并发送 TSPL…", () -> {
+            printService.printDesign(designSnapshot, variables);
+            banner.success("测试打印已下发");
+            uiLog.info("测试打印已下发: " + nameSnapshot);
+        });
+    }
+
+    private void showOutputPreview() {
+        if (design == null) {
+            banner.fail("请先打开模板");
+            return;
+        }
+        String designSnapshot = design.toString();
+        Map<String, String> variables = previewVariables();
+        if (outputMode == OutputMode.LASER) {
+            startTask("正在生成打标对象…", () -> {
+                String preview = laserService.previewDesign(designSnapshot, variables);
+                Platform.runLater(() -> {
+                    showLaserDialog(preview);
+                    banner.success("打标对象已生成");
+                });
+            });
+            return;
+        }
+        startTask("正在生成 TSPL 指令…", () -> {
+            String tspl = printService.previewTspl(designSnapshot, variables);
+            Platform.runLater(() -> {
+                showTsplDialog(tspl);
+                banner.success("TSPL 指令已生成");
+            });
+        });
+    }
+
+    private void showLaserDialog(String preview) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("打标对象预览");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.setResizable(true);
         if (canvas.getScene() != null) {
             dialog.initOwner(canvas.getScene().getWindow());
             dialog.getDialogPane().getStylesheets().addAll(canvas.getScene().getStylesheets());
         }
+        Label summary = new Label("以下对象将由 SDK 动态创建，不读取或写入 .ezd 文件。预览不代表设备已连接。");
+        summary.getStyleClass().add("hint");
+        summary.setWrapText(true);
+        javafx.scene.control.TextArea area = new javafx.scene.control.TextArea(preview);
+        area.setEditable(false);
+        area.setWrapText(false);
+        area.getStyleClass().add("tspl-preview");
+        area.setPrefSize(900, 600);
+        VBox content = new VBox(10, summary, area);
+        content.setPrefSize(920, 650);
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
+    }
 
-        Map<String, TextField> fields = new LinkedHashMap<>();
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        int row = 0;
-        for (String variable : variables) {
-            TextField field = new TextField();
-            field.setPromptText("请输入 " + variable);
-            fields.put(variable, field);
-            Label label = new Label(variable);
-            label.getStyleClass().add("field-label");
-            grid.addRow(row++, label, field);
+    private void showTsplDialog(String tspl) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("TSPL 指令预览");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.setResizable(true);
+        if (canvas.getScene() != null) {
+            dialog.initOwner(canvas.getScene().getWindow());
+            dialog.getDialogPane().getStylesheets().addAll(canvas.getScene().getStylesheets());
         }
-        if (variables.isEmpty()) {
-            Label empty = new Label("此模板无需录入变量");
-            empty.getStyleClass().add("empty-state");
-            grid.add(empty, 0, 0);
-        }
-        dialog.getDialogPane().setContent(new ScrollPane(grid));
-        dialog.getDialogPane().setPrefWidth(460);
-        dialog.getDialogPane().lookupButton(printType).disableProperty().bind(busy);
-
-        if (dialog.showAndWait().orElse(ButtonType.CANCEL) != printType) {
-            return;
-        }
-        Map<String, String> values = new LinkedHashMap<>();
-        fields.forEach((key, field) -> values.put(key, field.getText()));
-        Map<String, String> snapshot = Map.copyOf(values);
-        startTask("正在下发测试打印…", () -> {
-            printService.print(nameSnapshot, snapshot);
-            banner.success("测试打印已下发：" + nameSnapshot);
-            uiLog.info("测试打印已下发: " + nameSnapshot);
-        });
+        Label summary = new Label("模板 DPI：" + design.path("dpi").asInt(600)
+                + " · UTF-8 字节数：" + tspl.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                + "\n实际发送前先查询 <ESC>!?（HEX：1B 21 3F）；下方为完整 TSPL 内容。");
+        summary.getStyleClass().add("hint");
+        summary.setWrapText(true);
+        javafx.scene.control.TextArea area = new javafx.scene.control.TextArea(tspl);
+        area.setEditable(false);
+        area.setWrapText(false);
+        area.getStyleClass().add("tspl-preview");
+        area.setPrefSize(900, 600);
+        VBox content = new VBox(10, summary, area);
+        content.setPrefSize(920, 650);
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
     }
 
     private void startTask(String status, IoAction action) {

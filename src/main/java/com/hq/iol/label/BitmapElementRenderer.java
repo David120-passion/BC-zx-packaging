@@ -44,6 +44,12 @@ final class BitmapElementRenderer {
         try {
             elementGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                     RenderingHints.VALUE_ANTIALIAS_ON);
+            elementGraphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+                    RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            elementGraphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,
+                    RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+            elementGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_BICUBIC);
             if (rotation != 0) {
                 DesignElements.Bounds bounds = DesignElements.bounds(element);
                 double centerX = LabelRenderer.dot(bounds.x() + bounds.width() / 2, dpi);
@@ -63,7 +69,7 @@ final class BitmapElementRenderer {
         String type = element.path("type").asText();
         switch (type) {
             case "text", "datetime", "serial" -> drawText(element, vars, dpi, g);
-            case "image" -> drawImage(element, vars, dpi, g);
+            case "image" -> drawImage(element, dpi, g);
             case "datamatrix" -> drawDataMatrix(element, vars, dpi, g);
             case "barcode" -> drawBarcode(element, vars, dpi, g);
             case "qrcode" -> drawQrCode(element, vars, dpi, g);
@@ -81,7 +87,7 @@ final class BitmapElementRenderer {
             case "datetime" -> LocalDateTime.now().format(DateTimeFormatter.ofPattern(
                     element.path("format").asText("yyyy-MM-dd HH:mm:ss")));
             case "serial" -> serialValue(element);
-            default -> VariableSupport.replace(element.path("content").asText(""), vars);
+            default -> VariableSupport.resolveContent(element, vars);
         };
         int fontSize = Math.max(1, LabelRenderer.dot(element.path("fontSizeMm").asDouble(3), dpi));
         int style = Font.PLAIN;
@@ -129,13 +135,13 @@ final class BitmapElementRenderer {
         return element.path("prefix").asText("") + number;
     }
 
-    private static void drawImage(JsonNode element, Map<String, String> vars, int dpi, Graphics2D g) {
-        String source = VariableSupport.replace(element.path("source").asText(""), vars);
+    private static void drawImage(JsonNode element, int dpi, Graphics2D g) {
+        String source = element.path("source").asText("");
         int x = LabelRenderer.dot(element.path("x").asDouble(), dpi);
         int y = LabelRenderer.dot(element.path("y").asDouble(), dpi);
         int width = Math.max(1, LabelRenderer.dot(element.path("widthMm").asDouble(20), dpi));
         int height = Math.max(1, LabelRenderer.dot(element.path("heightMm").asDouble(20), dpi));
-        if (source.isBlank() || (source.startsWith("{{") && source.endsWith("}}"))) {
+        if (source.isBlank()) {
             g.setColor(Color.LIGHT_GRAY);
             g.setStroke(new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER,
                     10, new float[]{4, 4}, 0));
@@ -175,7 +181,7 @@ final class BitmapElementRenderer {
                                        int dpi, Graphics2D g) {
         String stream = element.path("gs1").asBoolean(false)
                 ? LabelRenderer.buildGs1Stream(element, vars)
-                : VariableSupport.replace(element.path("content").asText(""), vars);
+                : VariableSupport.resolveContent(element, vars);
         String zxingContent = stream.replace("~1", "\u001d");
         int x = LabelRenderer.dot(element.path("x").asDouble(), dpi);
         int y = LabelRenderer.dot(element.path("y").asDouble(), dpi);
@@ -187,7 +193,7 @@ final class BitmapElementRenderer {
 
     private static void drawBarcode(JsonNode element, Map<String, String> vars,
                                     int dpi, Graphics2D g) {
-        String content = VariableSupport.replace(element.path("content").asText(""), vars);
+        String content = VariableSupport.resolveContent(element, vars);
         int x = LabelRenderer.dot(element.path("x").asDouble(), dpi);
         int y = LabelRenderer.dot(element.path("y").asDouble(), dpi);
         int width = element.has("widthMm")
@@ -217,7 +223,7 @@ final class BitmapElementRenderer {
 
     private static void drawQrCode(JsonNode element, Map<String, String> vars,
                                    int dpi, Graphics2D g) {
-        String content = VariableSupport.replace(element.path("content").asText(""), vars);
+        String content = VariableSupport.resolveContent(element, vars);
         int x = LabelRenderer.dot(element.path("x").asDouble(), dpi);
         int y = LabelRenderer.dot(element.path("y").asDouble(), dpi);
         int size = Math.max(1, LabelRenderer.dot(element.path("sizeMm").asDouble(15), dpi));

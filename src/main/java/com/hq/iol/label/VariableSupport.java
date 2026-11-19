@@ -9,43 +9,33 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** 模板变量 {{var}}：提取与替换。无值保留原样（与 MES 对接约定一致）。 */
+/** 显式固定值、变量绑定及 GS1 变量表达式的提取和解析。 */
 public final class VariableSupport {
 
-    private static final Pattern VAR = Pattern.compile("\\{\\{(\\w+)\\}\\}");
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Pattern GS1_VARIABLE = Pattern.compile("\\{\\{([A-Za-z_][A-Za-z0-9_]{0,63})}}");
 
     private VariableSupport() {
     }
 
-    /** 提取 design JSON 全部元素 content/source 字段中的变量名。 */
     public static Set<String> extract(String designJson) {
         Set<String> vars = new LinkedHashSet<>();
         try {
             JsonNode elements = MAPPER.readTree(designJson).path("elements");
-            for (JsonNode el : elements) {
-                collect(el.path("content").asText(""), vars);
-                collect(el.path("source").asText(""), vars);
-            }
-        } catch (Exception e) {
-            throw new IllegalArgumentException("design JSON 无法解析: " + e.getMessage(), e);
-        }
-        return vars;
-    }
-
-    /** 普通占位变量与启用了 GS1 的元素所必需的业务变量。 */
-    public static Set<String> extractRequired(String designJson) {
-        Set<String> vars = new LinkedHashSet<>(extract(designJson));
-        try {
-            JsonNode elements = MAPPER.readTree(designJson).path("elements");
             for (JsonNode element : elements) {
-                if (!element.path("gs1").asBoolean(false)) {
+                if (!"variable".equals(element.path("contentMode").asText())) {
                     continue;
                 }
-                if ("lens".equals(element.path("gs1Mode").asText("lens"))) {
-                    vars.addAll(Set.of("diNo", "sterileDate", "serialNo"));
-                } else if ("injector".equals(element.path("gs1Mode").asText())) {
-                    vars.addAll(Set.of("diNo", "productionDate", "expiryDate", "lotNo"));
+                if (isGs1(element)) {
+                    Matcher matcher = GS1_VARIABLE.matcher(element.path("content").asText(""));
+                    while (matcher.find()) {
+                        vars.add(matcher.group(1));
+                    }
+                } else {
+                    String key = element.path("variableKey").asText("").trim();
+                    if (!key.isEmpty()) {
+                        vars.add(key);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -54,23 +44,43 @@ public final class VariableSupport {
         return vars;
     }
 
-    private static void collect(String text, Set<String> vars) {
-        Matcher m = VAR.matcher(text);
-        while (m.find()) {
-            vars.add(m.group(1));
+    public static String resolveContent(JsonNode element, Map<String, String> vars) {
+        if (!"variable".equals(element.path("contentMode").asText())) {
+            return element.path("content").asText("");
         }
+        String key = element.path("variableKey").asText("").trim();
+        if (key.isEmpty()) {
+            return "";
+        }
+        String value = vars.get(key);
+        return value != null ? value : "";
     }
 
-    /** 替换单段文本中的变量；vars 中无此键时保留 {{var}} 原样。 */
-    public static String replace(String text, Map<String, String> vars) {
-        Matcher m = VAR.matcher(text);
-        StringBuilder sb = new StringBuilder();
-        while (m.find()) {
-            String v = vars.get(m.group(1));
-            m.appendReplacement(sb,
-                    v != null ? Matcher.quoteReplacement(v) : m.group(0));
+    public static String resolveGs1Template(JsonNode element, Map<String, String> vars) {
+        String expression = element.path("content").asText("");
+        if (!"variable".equals(element.path("contentMode").asText())) {
+            return expression;
         }
-        m.appendTail(sb);
-        return sb.toString();
+        Matcher matcher = GS1_VARIABLE.matcher(expression);
+        StringBuilder resolved = new StringBuilder();
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            String value = vars.get(key);
+            if (value == null || value.isBlank()) {
+                throw new IllegalArgumentException("GS1 变量未赋值: " + key);
+            }
+            matcher.appendReplacement(resolved, Matcher.quoteReplacement(value));
+        }
+        matcher.appendTail(resolved);
+        return resolved.toString();
+    }
+
+    public static Set<String> extractRequired(String designJson) {
+        return extract(designJson);
+    }
+
+    private static boolean isGs1(JsonNode element) {
+        return "datamatrix".equals(element.path("type").asText())
+                && element.path("gs1").asBoolean(false);
     }
 }

@@ -7,7 +7,6 @@ import io.vertx.core.net.NetClientOptions;
 import io.vertx.core.net.NetSocket;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
@@ -19,6 +18,7 @@ public final class TscPrinterDriver {
 
     private static final byte[] CMD_STATUS = {0x1B, 0x21, 0x3F};
     private static final int IO_TIMEOUT_MS = 2000;
+    private static final int PRINT_IO_TIMEOUT_MS = 10000;
 
     private final Vertx vertx;
     private final String host;
@@ -38,6 +38,19 @@ public final class TscPrinterDriver {
         }
     }
 
+    /** 分别报告 TCP 连通性和 TSPL 状态，避免通用 TCP 服务被误判为离线。 */
+    public PrinterProbe probe() {
+        try (Connection connection = openConnection()) {
+            try {
+                return new PrinterProbe(true, requestStatus(connection.socket()));
+            } catch (IOException | RuntimeException e) {
+                return new PrinterProbe(true, null);
+            }
+        } catch (IOException | RuntimeException e) {
+            return new PrinterProbe(false, null);
+        }
+    }
+
     /** 查询状态并打印。状态非就绪时抛 PrinterNotReadyException，不下发指令。 */
     public void print(String tspl) throws IOException, PrinterNotReadyException {
         try (Connection connection = openConnection()) {
@@ -45,9 +58,9 @@ public final class TscPrinterDriver {
             if (!PrinterStatus.isReady(status)) {
                 throw new PrinterNotReadyException(status);
             }
-            await(connection.socket().write(Buffer.buffer(tspl, StandardCharsets.UTF_8.name()))
-                            .toCompletionStage(),
-                    IO_TIMEOUT_MS, "打印数据发送失败");
+            await(connection.socket().write(Buffer.buffer()
+                            .appendBytes(TsplBinaryCodec.encode(tspl))).toCompletionStage(),
+                    PRINT_IO_TIMEOUT_MS, "打印数据发送失败");
         }
     }
 

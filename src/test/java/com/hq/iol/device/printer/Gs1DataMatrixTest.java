@@ -1,89 +1,85 @@
 package com.hq.iol.device.printer;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hq.iol.label.LabelRenderer;
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDate;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class Gs1DataMatrixTest {
 
+    private final ObjectMapper mapper = new ObjectMapper();
+
     @Test
-    void A线码流_前导FNC1加四段AI_中间无分隔符() {
-        String s = Gs1DataMatrix.forLens("06975897610400",
-                LocalDate.of(2026, 5, 28), LocalDate.of(2031, 5, 28), "2605283500");
-        assertThat(s).isEqualTo("~1" + "01" + "06975897610400"
-                + "11" + "260528" + "17" + "310528" + "21" + "2605283500");
+    void 固定AI表达式支持自定义内容() {
+        assertThat(Gs1DataMatrix.build("(01)123456(02)123456"))
+                .isEqualTo("~10112345602123456");
     }
 
     @Test
-    void B线码流_AI10批次号在末位() {
-        String s = Gs1DataMatrix.forInjector("06975897610400",
-                LocalDate.of(2026, 5, 28), LocalDate.of(2031, 5, 28), "LOT-7");
-        assertThat(s).isEqualTo("~1" + "01" + "06975897610400"
-                + "11" + "260528" + "17" + "310528" + "10" + "LOT-7");
+    void 变量表达式可组合多个运行时值() {
+        var element = mapper.createObjectNode();
+        element.put("contentMode", "variable");
+        element.put("content", "(01){{diNo}}(21){{serialNo}}");
+        assertThat(LabelRenderer.buildGs1Stream(element,
+                Map.of("diNo", "06975897610400", "serialNo", "2605283500")))
+                .isEqualTo("~10106975897610400212605283500");
     }
 
     @Test
-    void 内容中的波浪号转义为双波浪号() {
-        String s = Gs1DataMatrix.forInjector("06975897610400",
-                LocalDate.of(2026, 5, 28), LocalDate.of(2031, 5, 28), "A~B");
-        assertThat(s).endsWith("10A~~B");
+    void 固定模式下双花括号仅是普通字符() {
+        var element = mapper.createObjectNode();
+        element.put("contentMode", "fixed");
+        element.put("content", "(01){{diNo}}");
+        assertThat(LabelRenderer.buildGs1Stream(element, Map.of("diNo", "06975897610400")))
+                .isEqualTo("~101{{diNo}}");
     }
 
     @Test
-    void UDIDI非14位数字直接拒绝() {
-        assertThatThrownBy(() -> Gs1DataMatrix.forLens("ABC",
-                LocalDate.now(), LocalDate.now(), "1"))
+    void 缺失变量明确报错而不生成残缺码流() {
+        var element = mapper.createObjectNode();
+        element.put("contentMode", "variable");
+        element.put("content", "(01){{diNo}}");
+        assertThatThrownBy(() -> LabelRenderer.buildGs1Stream(element, Map.of()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("UDI-DI");
+                .hasMessageContaining("diNo");
     }
 
     @Test
-    void 序列号含引号直接拒绝() {
-        assertThatThrownBy(() -> Gs1DataMatrix.forLens("06975897610400",
-                LocalDate.now(), LocalDate.now(), "AB\"C"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("序列号").hasMessageContaining("AB\"C");
+    void 支持网址和显式FNC1分隔符及波浪号转义() {
+        assertThat(Gs1DataMatrix.build("(8200)https://example.com/p/1"))
+                .isEqualTo("~18200https://example.com/p/1");
+        assertThat(Gs1DataMatrix.build("(21)ABC~1(10)X~Y"))
+                .isEqualTo("~121ABC~110X~~Y");
+        assertThat(Gs1DataMatrix.build("~1ABC")).isEqualTo("~1ABC");
     }
 
     @Test
-    void 批次号含反斜杠直接拒绝() {
-        assertThatThrownBy(() -> Gs1DataMatrix.forInjector("06975897610400",
-                LocalDate.now(), LocalDate.now(), "A\\B"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("批次号").hasMessageContaining("A\\B");
+    void 日期AI支持ISO日期和六位日期() {
+        assertThat(Gs1DataMatrix.build("(11)2026-05-28(17)310528"))
+                .isEqualTo("~11126052817310528");
+        assertThatThrownBy(() -> Gs1DataMatrix.build("(11)2026/05/28"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("日期");
     }
 
     @Test
-    void 序列号含控制字符直接拒绝() {
-        assertThatThrownBy(() -> Gs1DataMatrix.forLens("06975897610400",
-                LocalDate.now(), LocalDate.now(), "A\nB"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("序列号");
-    }
-
-    @Test
-    void 序列号超过20位直接拒绝() {
-        assertThatThrownBy(() -> Gs1DataMatrix.forLens("06975897610400",
-                LocalDate.now(), LocalDate.now(), "123456789012345678901"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("序列号");
-    }
-
-    @Test
-    void 序列号为null直接拒绝() {
-        assertThatThrownBy(() -> Gs1DataMatrix.forLens("06975897610400",
-                LocalDate.now(), LocalDate.now(), null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("序列号");
-    }
-
-    @Test
-    void 批次号合法字母数字连字符放行() {
-        String s = Gs1DataMatrix.forInjector("06975897610400",
-                LocalDate.of(2026, 5, 13), LocalDate.of(2031, 5, 13), "ABC-123xyz");
-        assertThat(s).endsWith("10ABC-123xyz");
+    void 空内容括号不匹配及非法字符会被拒绝() {
+        assertThatThrownBy(() -> Gs1DataMatrix.build(" "))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("不能为空");
+        assertThatThrownBy(() -> Gs1DataMatrix.build("(01ABC"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("括号");
+        assertThatThrownBy(() -> Gs1DataMatrix.build("(AB)123"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("2–4");
+        assertThatThrownBy(() -> Gs1DataMatrix.build("(01)"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("内容为空");
+        assertThatThrownBy(() -> Gs1DataMatrix.build("(01)AB\"C"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("引号");
+        assertThatThrownBy(() -> Gs1DataMatrix.build("(01)A\\B"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("反斜杠");
+        assertThatThrownBy(() -> Gs1DataMatrix.build("(01)A\nB"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("ASCII");
     }
 }

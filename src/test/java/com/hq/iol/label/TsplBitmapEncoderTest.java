@@ -22,21 +22,20 @@ class TsplBitmapEncoderTest {
     @Test
     void 位图按行打包_MSB在前_行对齐到字节() {
         byte[] bytes = TsplBitmapEncoder.toMonoBytes(sample());
-        // 16 宽 × 8 高 = 2 字节/行 × 8 行 = 16 字节；仅第一行全 1
+        // 16 宽 × 8 高 = 2 字节/行 × 8 行 = 16 字节；TSPL 黑行为 00，白行为 FF
         assertThat(bytes).hasSize(16);
-        assertThat(bytes[0]).isEqualTo((byte) 0xFF);
-        assertThat(bytes[1]).isEqualTo((byte) 0xFF);
+        assertThat(bytes[0]).isEqualTo((byte) 0x00);
+        assertThat(bytes[1]).isEqualTo((byte) 0x00);
         for (int i = 2; i < 16; i++) {
-            assertThat(bytes[i]).isEqualTo((byte) 0x00);
+            assertThat(bytes[i]).isEqualTo((byte) 0xFF);
         }
     }
 
     @Test
-    void GRAPH指令含字节宽_点高_大写hex() {
-        String cmd = TsplBitmapEncoder.toGraphCommand(sample(), 10, 20);
-        assertThat(cmd).startsWith("GRAPH 10,20,2,8,");
+    void BITMAP指令含字节宽_点高_OVERWRITE与大写hex() {
+        String cmd = TsplBitmapEncoder.toBitmapCommand(sample(), 10, 20);
+        assertThat(cmd).startsWith("BITMAP 10,20,2,8,0,");
         assertThat(cmd).endsWith("\r\n");
-        assertThat(cmd).contains("FFFF");
-        assertThat(cmd).contains("0000000000000000000000000000");
+        assertThat(cmd).endsWith("0000FFFFFFFFFFFFFFFFFFFFFFFFFFFF\r\n");
     }
 }

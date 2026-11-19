@@ -1,6 +1,6 @@
 package com.hq.iol.device.scale;
 
-/** 秤返回帧无法解析（帧长度、状态头、数字格式非法）。 */
+/** KXQY 数据组无法解析（缺少结束行、状态或重量、数字格式非法）。 */
 public class ScaleProtocolException extends Exception {
 
     public ScaleProtocolException(String raw, String reason) {

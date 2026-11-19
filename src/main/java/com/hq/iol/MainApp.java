@@ -6,11 +6,13 @@ import com.hq.iol.ui.SplashScreen;
 import javafx.animation.FadeTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.image.Image;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.slf4j.Logger;
@@ -28,7 +30,7 @@ import java.util.List;
  * JavaFX 应用入口：start() 阶段先展示启动动画，
  * 后台 daemon 线程引导 Spring 容器，完成后淡出动画并挂载主界面。
  */
-public class MainApp extends Application {
+public class MainApp {
 
     private static final Logger log = LoggerFactory.getLogger(MainApp.class);
 
@@ -37,10 +39,9 @@ public class MainApp extends Application {
     private ConfigurableApplicationContext ctx;
 
     public static void main(String[] args) {
-        launch(args);
+        Application.launch(FxApplication.class, args);
     }
 
-    @Override
     public void start(Stage stage) {
         SplashScreen splash = null;
         List<Image> icons = null;
@@ -110,16 +111,23 @@ public class MainApp extends Application {
         return icons;
     }
 
-    /** 构建主界面场景（不显示）。侧边栏布局较宽，窗口相应加大并设置最小尺寸保护布局。 */
+    /** 构建主界面场景，并按主屏幕的可用区域设置窗口大小。 */
     void prepareMainStage(Stage stage, List<Image> icons) {
         MainView mainView = ctx.getBean(MainView.class);
-        Scene scene = new Scene(mainView.build(), 1360, 900);
+        Scene scene = new Scene(mainView.build());
         // 填充色与页面背景一致：最大化/全屏时高分屏缩放会在边缘露出 Scene 底色，
         // 默认底色渲染为黑色，会出现黑边
         scene.setFill(Color.web("#F5F5F7"));
         scene.getStylesheets().add(getClass().getResource("/app.css").toExternalForm());
-        stage.setMinWidth(1180);
-        stage.setMinHeight(720);
+        Rectangle2D screenBounds = Screen.getPrimary().getVisualBounds();
+        double width = Math.min(1360, screenBounds.getWidth());
+        double height = Math.min(900, screenBounds.getHeight());
+        stage.setMinWidth(Math.min(1180, width));
+        stage.setMinHeight(Math.min(720, height));
+        stage.setWidth(width);
+        stage.setHeight(height);
+        stage.setX(screenBounds.getMinX() + (screenBounds.getWidth() - width) / 2);
+        stage.setY(screenBounds.getMinY() + (screenBounds.getHeight() - height) / 2);
         stage.setTitle("IOL 包装线上位机 v" + AppInfo.version());
         stage.getIcons().addAll(icons);
         stage.setScene(scene);
@@ -161,11 +169,24 @@ public class MainApp extends Application {
         Platform.exit();
     }
 
-    @Override
     public void stop() {
         if (ctx != null) {
             ctx.close();
         }
         Platform.exit();
+    }
+
+    public static final class FxApplication extends Application {
+        private final MainApp app = new MainApp();
+
+        @Override
+        public void start(Stage stage) {
+            app.start(stage);
+        }
+
+        @Override
+        public void stop() {
+            app.stop();
+        }
     }
 }

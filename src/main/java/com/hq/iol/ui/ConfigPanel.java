@@ -2,6 +2,8 @@ package com.hq.iol.ui;
 
 import com.hq.iol.config.ConfigKeys;
 import com.hq.iol.config.ConfigService;
+import com.hq.iol.service.PrinterRegistry;
+import com.hq.iol.service.ScaleRegistry;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -30,25 +32,26 @@ public class ConfigPanel {
 
     private final ConfigService configService;
     private final UiLogService uiLog;
+    private final PrinterRegistry printers;
+    private final ScaleRegistry scales;
     private final Map<String, TextField> fields = new LinkedHashMap<>();
     private final Map<String, Label> errors = new LinkedHashMap<>();
     private final ResultBanner banner = new ResultBanner();
     private final BooleanProperty busy = new SimpleBooleanProperty(false);
 
-    public ConfigPanel(ConfigService configService, UiLogService uiLog) {
+    public ConfigPanel(ConfigService configService, UiLogService uiLog,
+                       PrinterRegistry printers, ScaleRegistry scales) {
         this.configService = configService;
         this.uiLog = uiLog;
+        this.printers = printers;
+        this.scales = scales;
     }
 
     public Parent build() {
-        VBox printer = section("标签打印机", "TSPL/TSPL2 over TCP");
+        Parent printer = new PrinterManagerPanel(printers, uiLog).build();
+        Parent scaleDevices = new ScaleManagerPanel(scales, uiLog).build();
+        VBox scale = section("称重参数", "KXQY · ASCII · 秤上 COM 可设为 SOFT 或 CON");
         int row = 0;
-        row = addField(printer, row, "打印机地址", ConfigKeys.PRINTER_HOST, "如 192.168.1.100");
-        row = addField(printer, row, "RAW 端口", ConfigKeys.PRINTER_PORT, "1–65535");
-        addField(printer, row, "打印分辨率", ConfigKeys.PRINTER_DPI, "DPI");
-
-        VBox scale = section("电子秤", "A&D EK-i · RS-232C");
-        row = addField(scale, 0, "电子秤串口", ConfigKeys.SCALE_PORT, "如 COM3");
         addField(scale, row, "稳定重量读取超时", ConfigKeys.SCALE_READ_TIMEOUT_MS, "ms");
 
         Button saveButton = new Button("保存配置");
@@ -63,7 +66,8 @@ public class ConfigPanel {
         VBox actionCard = new VBox(8, banner.node(), buttons);
         actionCard.getStyleClass().add("toolbar-card");
 
-        VBox content = new VBox(14, printer, scale, actionCard);
+        Parent laser = new LaserSettingsPanel(configService, uiLog).build();
+        VBox content = new VBox(14, printer, scaleDevices, scale, laser, actionCard);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         scroll.getStyleClass().add("config-scroll");

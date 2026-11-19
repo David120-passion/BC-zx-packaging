@@ -36,12 +36,20 @@ final class FakeTscPrinterServer implements AutoCloseable {
     }
 
     byte[] received() {
+        try {
+            thread.join(5000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("等待虚拟打印机接收数据时被中断", e);
+        }
+        if (thread.isAlive()) {
+            throw new AssertionError("虚拟打印机未在 5 秒内收到完整连接数据");
+        }
         return received.toByteArray();
     }
 
     private void serve() {
-        try {
-            Socket s = server.accept();
+        try (Socket s = server.accept()) {
             InputStream in = s.getInputStream();
             OutputStream out = s.getOutputStream();
             int b;

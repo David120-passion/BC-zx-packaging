@@ -1,11 +1,15 @@
 package com.hq.iol.ui;
 
 import com.hq.iol.config.AppInfo;
+import com.hq.iol.device.printer.PrinterProbe;
+import com.hq.iol.device.printer.PrinterProfile;
+import com.hq.iol.device.printer.PrinterStatus;
 import javafx.beans.property.ReadOnlyIntegerProperty;
 import javafx.beans.property.ReadOnlyIntegerWrapper;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.image.Image;
@@ -18,10 +22,11 @@ import javafx.scene.layout.VBox;
 import javafx.scene.shape.Rectangle;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * iOS 设置风格侧边栏导航：顶部应用标识（圆角图标 + 名称）、
- * 中部导航项（彩色圆角图标块 + 文字，选中为白色胶囊）、底部本地运行状态与版本号。
+ * 中部导航项（彩色圆角图标块 + 文字，选中为白色胶囊）、底部打印机状态与版本号。
  * 页面切换通过 {@link #selectedIndexProperty()} 暴露，由主界面监听后切换内容区。
  */
 public class SidebarNav {
@@ -32,6 +37,7 @@ public class SidebarNav {
 
     private final ReadOnlyIntegerWrapper selectedIndex = new ReadOnlyIntegerWrapper(0);
     private final VBox box;
+    private final VBox printerStatusBox = new VBox(4);
 
     public SidebarNav(Image appIcon, List<NavItem> items) {
         // 顶部应用标识：圆角裁剪的图标 + 名称/副标题
@@ -87,14 +93,22 @@ public class SidebarNav {
             selectedIndex.set((Integer) newToggle.getUserData());
         });
 
-        // 底部：本地运行状态 + 版本号（仅本机运行时信息，不展示设备在线状态）
+        Label waiting = new Label("打印机状态：等待检测");
+        waiting.getStyleClass().add("sidebar-subtitle");
+        printerStatusBox.getChildren().add(waiting);
+        ScrollPane statusScroll = new ScrollPane(printerStatusBox);
+        statusScroll.setFitToWidth(true);
+        statusScroll.setPrefViewportHeight(120);
+        statusScroll.setMaxHeight(160);
+        statusScroll.getStyleClass().add("config-scroll");
+
         Label runtime = new Label("● 本地运行");
         runtime.getStyleClass().add("sidebar-subtitle");
         Label version = new Label("v" + AppInfo.version());
         version.getStyleClass().add("sidebar-subtitle");
-        VBox footer = new VBox(2, runtime, version);
+        VBox footer = new VBox(4, statusScroll, runtime, version);
         footer.setAlignment(Pos.CENTER_LEFT);
-        footer.setStyle("-fx-padding: 8 6 2 6;");
+        footer.getStyleClass().add("mes-card");
         footer.setMaxWidth(Double.MAX_VALUE);
 
         Region filler = new Region();
@@ -106,6 +120,37 @@ public class SidebarNav {
 
     public Parent node() {
         return box;
+    }
+
+    public void setPrinterStatuses(List<PrinterProfile> profiles, Map<String, PrinterProbe> statuses) {
+        printerStatusBox.getChildren().clear();
+        for (PrinterProfile profile : profiles) {
+            PrinterProbe probe = statuses.get(profile.id());
+            String text;
+            String style;
+            if (probe == null) {
+                text = "等待检测";
+                style = "status-pending";
+            } else if (!probe.tcpConnected()) {
+                text = "未连接";
+                style = "mes-fail";
+            } else if (probe.status() == null) {
+                text = "已连接（无应答）";
+                style = "status-warn";
+            } else if (probe.status() == 0) {
+                text = "就绪";
+                style = "mes-ok";
+            } else {
+                text = "已连接·" + PrinterStatus.describe(probe.status());
+                style = "status-warn";
+            }
+            Label label = new Label("● " + profile.name() + "：" + text);
+            label.getStyleClass().addAll("sidebar-subtitle", style);
+            label.setWrapText(true);
+            label.setMaxWidth(185);
+            label.setTooltip(new javafx.scene.control.Tooltip(label.getText()));
+            printerStatusBox.getChildren().add(label);
+        }
     }
 
     public ReadOnlyIntegerProperty selectedIndexProperty() {

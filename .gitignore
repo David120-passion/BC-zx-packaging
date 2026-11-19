@@ -3,5 +3,8 @@ data/
 logs/
 *.iml
 .idea/
+.run/
 .vscode/
 .worktrees/
+src/main/laser-sdk/log.txt
+src/main/laser-sdk/cfglog.txt

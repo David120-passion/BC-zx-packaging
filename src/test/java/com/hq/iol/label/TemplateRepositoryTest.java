@@ -65,4 +65,21 @@ class TemplateRepositoryTest {
         assertThat(repo.findByName("内置").designJson()).isEqualTo("{}");
         repo.delete("t1_none"); // 不存在也不抛错
     }
+
+    @Test
+    void 启动清理旧内置模板但保留用户模板() {
+        SingleConnectionDataSource ds = new SingleConnectionDataSource(
+                "jdbc:sqlite:" + dir.resolve("migration.db"), true);
+        dataSources.add(ds);
+        JdbcTemplate jdbc = new JdbcTemplate(ds);
+        DbInitializer initializer = new DbInitializer(jdbc);
+        TemplateRepository repo = new TemplateRepository(jdbc, initializer);
+        repo.insert("A线晶体标签", "{}", true);
+        repo.insert("用户模板", "{}", false);
+
+        new DbInitializer(jdbc);
+
+        assertThat(repo.findAll()).extracting(LabelTemplate::name).containsExactly("用户模板");
+        assertThat(repo.findAll().get(0).builtin()).isFalse();
+    }
 }

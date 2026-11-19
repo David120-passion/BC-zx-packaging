@@ -6,14 +6,13 @@ import com.hq.iol.device.printer.Gs1DataMatrix;
 
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.time.LocalDate;
 import java.util.Map;
 
 /** 唯一标签渲染器：design JSON + 变量 → 混合 TSPL 与 BufferedImage 预览。 */
 public final class LabelRenderer {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final int PREVIEW_PX_PER_MM = 4;
+    private static final int PREVIEW_PX_PER_MM = 8;
 
     private LabelRenderer() {
     }
@@ -67,7 +66,7 @@ public final class LabelRenderer {
         }
         if (bitmap != null) {
             g2d.dispose();
-            tspl.append(TsplBitmapEncoder.toGraphCommand(bitmap, 0, 0));
+            tspl.append(TsplBitmapEncoder.toBitmapCommand(bitmap, 0, 0));
         }
         tspl.append(nativeCmds);
         tspl.append("PRINT 1,1\r\n");
@@ -95,22 +94,13 @@ public final class LabelRenderer {
         int module = Math.max(1, dot(element.path("moduleMm").asDouble(0.75), dpi));
         String stream = element.path("gs1").asBoolean(false)
                 ? buildGs1Stream(element, vars)
-                : VariableSupport.replace(element.path("content").asText(""), vars);
+                : VariableSupport.resolveContent(element, vars);
         return "DMATRIX %d,%d,%d,%d,c126,x%d,\"%s\"\r\n".formatted(
                 x, y, size, size, module, stream);
     }
 
-    static String buildGs1Stream(JsonNode element, Map<String, String> vars) {
-        String mode = element.path("gs1Mode").asText("lens");
-        if ("lens".equals(mode)) {
-            LocalDate sterile = LocalDate.parse(required(vars, "sterileDate"));
-            return Gs1DataMatrix.forLens(required(vars, "diNo"), sterile,
-                    sterile.plusYears(5), required(vars, "serialNo"));
-        }
-        return Gs1DataMatrix.forInjector(required(vars, "diNo"),
-                LocalDate.parse(required(vars, "productionDate")),
-                LocalDate.parse(required(vars, "expiryDate")),
-                required(vars, "lotNo"));
+    public static String buildGs1Stream(JsonNode element, Map<String, String> vars) {
+        return Gs1DataMatrix.build(VariableSupport.resolveGs1Template(element, vars));
     }
 
     private static String renderBarcode(JsonNode element, Map<String, String> vars, int dpi) {
@@ -120,7 +110,7 @@ public final class LabelRenderer {
                 dot(element.path("x").asDouble(), dpi), dot(element.path("y").asDouble(), dpi),
                 type, dot(element.path("heightMm").asDouble(8), dpi),
                 element.path("displayText").asBoolean(true) ? 1 : 0, module, module,
-                VariableSupport.replace(element.path("content").asText(""), vars));
+                VariableSupport.resolveContent(element, vars));
     }
 
     private static String renderQrcode(JsonNode element, Map<String, String> vars, int dpi) {
@@ -129,7 +119,7 @@ public final class LabelRenderer {
         return "QRCODE %d,%d,%s,%d,A,0,M2,\"%s\"\r\n".formatted(
                 dot(element.path("x").asDouble(), dpi), dot(element.path("y").asDouble(), dpi),
                 element.path("errorLevel").asText("M"), cell,
-                VariableSupport.replace(element.path("content").asText(""), vars));
+                VariableSupport.resolveContent(element, vars));
     }
 
     private static String renderLine(JsonNode element, int dpi) {
@@ -155,14 +145,6 @@ public final class LabelRenderer {
         int thickness = Math.max(1, dot(element.path("thicknessMm").asDouble(0.5), dpi));
         return "BOX %d,%d,%d,%d,%d\r\n".formatted(
                 x, y, x + width, y + height, thickness);
-    }
-
-    private static String required(Map<String, String> vars, String key) {
-        String value = vars.get(key);
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("GS1 元素缺少必需变量: " + key);
-        }
-        return value;
     }
 
     private static JsonNode parse(String designJson) {

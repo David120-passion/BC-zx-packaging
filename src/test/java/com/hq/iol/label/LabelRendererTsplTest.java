@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LabelRendererTsplTest {
 
     private static final Map<String, String> LENS_VARS = Map.of(
-            "diNo", "06975897610400", "sterileDate", "2026-05-28",
+            "diNo", "06975897610400", "sterileDate", "2026-05-28", "expiryDate", "2031-05-28",
             "serialNo", "2605283500", "type", "AT2000", "power", "+20.0D",
             "totalDia", "12.0", "bodyDia", "6.0");
 
@@ -21,7 +21,7 @@ class LabelRendererTsplTest {
         assertThat(tspl).contains("DMATRIX 71,378,472,472,c126,x18,"
                 + "\"~1" + "01" + "06975897610400" + "11" + "260528"
                 + "17" + "310528" + "21" + "2605283500\"");
-        assertThat(tspl).contains("GRAPH 0,0,");
+        assertThat(tspl).contains("BITMAP 0,0,178,945,0,");
         // 文本元素渲染进位图 hex，TSPL 字符串中不再出现文本内容，只验证位图指令存在
         assertThat(tspl).endsWith("PRINT 1,1\r\n");
     }
@@ -33,18 +33,22 @@ class LabelRendererTsplTest {
     }
 
     @Test
-    void 变量无值保留原样进入指令() {
-        // 用条码元素验证（文本元素进位图，TSPL 字符串中不可见）
+    void 变量无值输出空字符串_历史占位文本仅作为固定值() {
         String json = "{\"version\":1,\"dpi\":600,\"widthMm\":60,\"heightMm\":40,\"elements\":["
-                + "{\"id\":\"b\",\"type\":\"barcode\",\"x\":10,\"y\":5,\"heightMm\":8,\"moduleMm\":0.3,\"displayText\":true,\"content\":\"{{sn}}\"}]}";
+                + "{\"id\":\"b1\",\"type\":\"barcode\",\"x\":10,\"y\":5,\"heightMm\":8,\"moduleMm\":0.3,"
+                + "\"displayText\":true,\"contentMode\":\"variable\",\"variableKey\":\"sn\",\"content\":\"\"},"
+                + "{\"id\":\"b2\",\"type\":\"barcode\",\"x\":10,\"y\":10,\"heightMm\":8,\"moduleMm\":0.3,"
+                + "\"displayText\":true,\"content\":\"{{sn}}\"}]}";
         String tspl = LabelRenderer.renderTspl(json, Map.of(), 600);
+        assertThat(tspl).contains("\"\"");
         assertThat(tspl).contains("\"{{sn}}\"");
     }
 
     @Test
     void 非GS1元素分流正确() {
         String json = "{\"version\":1,\"dpi\":600,\"widthMm\":60,\"heightMm\":40,\"elements\":["
-                + "{\"id\":\"b\",\"type\":\"barcode\",\"x\":10,\"y\":5,\"heightMm\":8,\"moduleMm\":0.3,\"displayText\":true,\"content\":\"{{sn}}\"},"
+                + "{\"id\":\"b\",\"type\":\"barcode\",\"x\":10,\"y\":5,\"heightMm\":8,\"moduleMm\":0.3,"
+                + "\"displayText\":true,\"contentMode\":\"variable\",\"variableKey\":\"sn\",\"content\":\"\"},"
                 + "{\"id\":\"q\",\"type\":\"qrcode\",\"x\":30,\"y\":5,\"sizeMm\":15,\"errorLevel\":\"M\",\"content\":\"http://x\"},"
                 + "{\"id\":\"l\",\"type\":\"line\",\"x\":0,\"y\":30,\"lengthMm\":60,\"thicknessMm\":0.4,\"angle\":0},"
                 + "{\"id\":\"r\",\"type\":\"rect\",\"x\":1,\"y\":1,\"widthMm\":20,\"heightMm\":10,\"thicknessMm\":0.5,\"fill\":false}]}";

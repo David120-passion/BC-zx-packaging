@@ -98,6 +98,16 @@
 .chip-blue   { -fx-background-color: #007AFF; }
 .chip-green  { -fx-background-color: #34C759; }
 .chip-gray   { -fx-background-color: #8E8E93; }
+.mes-card {
+    -fx-background-color: -hq-surface;
+    -fx-background-radius: 12;
+    -fx-padding: 9 10 9 10;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.06), 10, 0, 0, 2);
+}
+.mes-ok { -fx-text-fill: -hq-green-text; }
+.mes-fail { -fx-text-fill: -hq-red-text; }
+.status-warn { -fx-text-fill: #B25000; }
+.status-pending { -fx-text-fill: -hq-text-3; }
 
 /* ════════════════ 卡片 ════════════════ */
 .card {
@@ -497,7 +507,6 @@
 
 /* ════════════════ 页面头 ════════════════ */
 .page-title { -fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: -hq-text; }
-.page-subtitle { -fx-font-size: 12px; -fx-text-fill: -hq-text-2; }
 .page-content { -fx-background-color: transparent; }
 
 /* ════════════════ 日志抽屉 ════════════════ */
@@ -535,3 +544,28 @@
 /* ════════════════ 状态与校验 ════════════════ */
 .empty-state { -fx-text-fill: -hq-text-3; -fx-font-size: 13px; -fx-alignment: center; }
 .field-error { -fx-text-fill: -hq-red-text; -fx-font-size: 11px; }
+.tspl-preview {
+    -fx-font-family: "Consolas", "Noto Sans CJK SC Medium", monospace;
+    -fx-font-size: 12px;
+}
+.tspl-preview .content { -fx-background-color: -hq-surface; }
+
+.numeric-stepper { -fx-alignment: center-left; }
+.stepper-buttons { -fx-alignment: center; }
+.stepper-button {
+    -fx-background-color: -hq-surface;
+    -fx-border-color: -hq-border;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 0;
+    -fx-font-size: 9px;
+    -fx-pref-width: 24;
+    -fx-min-width: 24;
+    -fx-max-width: 24;
+    -fx-pref-height: 18;
+    -fx-min-height: 18;
+    -fx-max-height: 18;
+    -fx-text-fill: -hq-text-2;
+}
+.stepper-button:hover { -fx-background-color: -hq-accent-tint; -fx-text-fill: -hq-accent; }
+.stepper-button:disabled { -fx-opacity: 0.35; }
